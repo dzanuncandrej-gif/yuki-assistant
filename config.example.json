@@ -1,0 +1,144 @@
+{
+  "audio": {
+    "sample_rate": 16000,
+    "block_ms": 30,
+    "silence_ms": 880,
+    "min_speech_ms": 260,
+    "max_utterance_ms": 15000,
+    "calibration_ms": 600,
+    "vad_threshold_scale": 3.0,
+    "vad_threshold_floor": 0.005,
+    "neural_vad": true,
+    "vad_start": 0.5,
+    "vad_end": 0.3,
+    "preroll_ms": 360,
+    "barge_in_scale": 2.6,
+    "barge_in_ms": 200,
+    "auto_input": true,
+    "input_device": null,
+    "output_device": null
+  },
+  "stt": {
+    "model_size": "small",
+    "device": "auto",
+    "gpu_model_size": "large-v3-turbo",
+    "gpu_compute_type": "int8_float16",
+    "compute_type": "int8",
+    "language": "ru",
+    "beam_size": 0,
+    "vad_filter": false,
+    "cpu_threads": 8,
+    "no_speech_threshold": 0.55,
+    "lexicon": true,
+    "initial_prompt": ""
+  },
+  "tts": {
+    "engine": "auto",
+    "piper_model": "models/piper/ru_RU-dmitri-medium.onnx",
+    "piper_speaker": null,
+    "voice_preset": "hard",
+    "voice_gain": 1.6,
+    "piper_length_scale": 0.92,
+    "piper_noise_scale": 0.6,
+    "piper_noise_w": 0.85,
+    "piper_volume": 1.0,
+    "edge_voice": "ru-RU-DmitryNeural",
+    "edge_rate": "-4%",
+    "edge_pitch": "-12Hz",
+    "pyttsx3_rate": 180,
+    "pyttsx3_voice_hint": "ru",
+    "voice": "sora"
+  },
+  "brain": {
+    "ollama_url": "http://127.0.0.1:11434",
+    "model": "qwen3:8b",
+    "fast_model": "",
+    "timeout_s": 120,
+    "history_turns": 11,
+    "max_steps": 8,
+    "think": false,
+    "temperature": 0.57,
+    "tool_temperature": 0.15,
+    "num_predict": 260,
+    "num_ctx": 8192,
+    "route_tools": true,
+    "heavy_model": "qwen3:8b"
+  },
+  "live": {
+    "preview_fps": 8.0,
+    "min_gap_s": 12.0,
+    "idle_refresh_s": 75.0,
+    "preview_side": 640,
+    "max_side": 512,
+    "proactive": true,
+    "hint_gap_s": 90.0
+  },
+  "camera": {
+    "enabled": true,
+    "index": 0,
+    "width": 640,
+    "height": 480,
+    "fps": 15.0,
+    "gestures": true
+  },
+  "web": {
+    "default_city": ""
+  },
+  "files": {
+    "search_scope": "home"
+  },
+  "contacts": {},
+  "wake": {
+    "enabled": false,
+    "words": [
+      "юки",
+      "yuki"
+    ]
+  },
+  "server": {
+    "host": "127.0.0.1",
+    "port": 8765,
+    "open_browser": true
+  },
+  "companion": {
+    "enabled": false,
+    "name": "Юки",
+    "voice": "sora",
+    "character": "",
+    "framing": "full",
+    "quality": "high",
+    "scale": 0.83,
+    "opacity": 1.0,
+    "always_on_top": true,
+    "click_through": false,
+    "subtitles": true,
+    "idle_motion": true,
+    "follow_cursor": true,
+    "lip_sync": true,
+    "emotion_style": "warm",
+    "position": null,
+    "idle_talk": true,
+    "idle_talk_minutes": 5
+  },
+  "account": {
+    "name": "",
+    "handle": "",
+    "avatar": ""
+  },
+  "ui": {
+    "language": "ru",
+    "accent": "aqua",
+    "animations": true,
+    "blur": true,
+    "autostart": false
+  },
+  "quick_launch": {
+    "apps": [
+      "Steam",
+      "Chrome",
+      "Проводник",
+      "Блокнот",
+      "Калькулятор"
+    ]
+  }
+}

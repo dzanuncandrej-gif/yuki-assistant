@@ -1,0 +1,48 @@
+# --- десктопный интерфейс ---
+PySide6-Essentials>=6.7          # Qt Widgets + QOpenGLWidget (без Chromium)
+
+# --- ядро аудио-цикла ---
+numpy>=1.26,<3
+sounddevice>=0.4.6
+soundfile>=0.12.1
+
+# --- распознавание речи (локально, без интернета после первой загрузки модели) ---
+faster-whisper>=1.0.3
+
+# --- синтез речи ---
+# основной движок: Silero v4 (одна модель на три голоса, офлайн, RTF около 0.02)
+torch>=2.2 ; platform_system == "Windows"
+piper-tts>=1.2.0 ; platform_system == "Windows"   # запасной локальный голос, потоковый
+edge-tts>=6.1                                     # нейроголос Dmitry (нужен интернет)
+pyttsx3>=2.90                                     # запасной системный SAPI5
+
+# --- автоматизация ОС ---
+psutil>=5.9
+pyautogui>=0.9.54                                  # мышь и скриншоты
+mss>=9.0                                           # быстрый захват экрана для видеорежима
+opencv-python>=4.10,<5                             # камера, поиск и узнавание лиц
+mediapipe>=1.0                                     # жесты рукой
+silero-vad>=6.0                                    # нейросетевой детектор речи
+Pillow>=10.0                                       # скриншоты и иконка приложения
+pyperclip>=1.8                                     # буфер обмена
+pywin32>=306 ; platform_system == "Windows"       # окна, фокус, буфер обмена, реестр
+pynput>=1.7                                        # глобальная горячая клавиша
+pycaw>=20240210 ; platform_system == "Windows"     # точная громкость через Core Audio
+screen-brightness-control>=0.22                    # яркость монитора
+
+# --- сеть: поиск, новости, чтение страниц ---
+requests>=2.31
+ddgs>=9.0                                          # поиск DuckDuckGo без ключей
+beautifulsoup4>=4.12                               # разбор HTML
+lxml>=5.0                                          # быстрый парсер для BeautifulSoup
+feedparser>=6.0                                    # ленты новостей RSS
+
+# --- веб-режим (опциональный запуск в браузере через run.py) ---
+fastapi>=0.110
+uvicorn[standard]>=0.29
+websockets>=12.0
+
+# --- прочее ---
+python-dotenv>=1.0                                 # ключи и настройки из .env
+# нужен, если в системе включён SOCKS-прокси (иначе не скачаются модели)
+PySocks>=1.7.1

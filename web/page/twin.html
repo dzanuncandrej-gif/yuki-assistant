@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Цифровой двойник — Hattatsu Group</title>
+<style>
+  /*
+    Оформление держится на одном правиле: цветом отмечается только беда.
+    Норма здесь бесцветна — сталь и почти белый, — и это не аскеза ради вкуса.
+    Когда светятся все показатели сразу, ни один из них не выделен, и панель
+    перестаёт работать: глазу некуда идти. Один горящий участок среди восьми
+    спокойных сообщает больше, чем восемь разноцветных.
+  */
+  :root {
+    --bg: #04060a;
+    --panel: rgba(7, 11, 18, .74);
+    --edge: rgba(150, 175, 215, .13);
+    --edge-lit: rgba(190, 210, 240, .32);
+    --ink: #e6ecf6;
+    --dim: #7f8ea8;
+    --faint: #5a677d;
+    --steel: #9db4d6;
+    --warn: #d9a047;
+    --crit: #e0423c;
+    --crimson: #b8332e;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg); color: var(--ink); overflow: hidden;
+    font: 14px/1.5 'Inter', -apple-system, 'Segoe UI', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased; letter-spacing: .005em;
+  }
+  #stage { position: fixed; inset: 0; }
+  #stage canvas { display: block; width: 100%; height: 100%; }
+
+  /* Виньетка и кинематографические поля. Стоят ноль и делают больше, чем любой
+     дополнительный проход постобработки: кадр перестаёт быть скриншотом окна. */
+  #vignette {
+    position: fixed; inset: 0; pointer-events: none; z-index: 5;
+    background:
+      radial-gradient(ellipse 78% 62% at 50% 46%, transparent 42%, rgba(0,0,0,.62) 100%),
+      linear-gradient(to bottom, rgba(0,0,0,.5), transparent 16%, transparent 78%, rgba(0,0,0,.62));
+  }
+
+  #labels { position: fixed; inset: 0; pointer-events: none; z-index: 6; }
+  .tag {
+    position: absolute; top: 0; left: 0; pointer-events: auto; cursor: pointer;
+    padding: 5px 11px 6px; border-left: 1px solid var(--edge); white-space: nowrap;
+    transition: opacity .25s, border-color .3s; text-align: left;
+  }
+  .tag b { display: block; font-size: 11.5px; font-weight: 500; letter-spacing: .045em;
+    text-transform: uppercase; color: var(--ink); }
+  .tag i { display: block; font-size: 10px; font-style: normal; color: var(--faint);
+    letter-spacing: .05em; margin-top: 1px; }
+  .tag u { display: block; font-size: 19px; font-weight: 300; text-decoration: none;
+    margin-top: 3px; color: var(--steel); font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+  .tag u.warn { color: var(--warn); }
+  .tag u.crit { color: var(--crit); font-weight: 400; }
+  .tag.hot { border-left-color: var(--crit); }
+  .tag:hover { border-left-color: var(--edge-lit); }
+
+  .panel {
+    position: fixed; z-index: 10; background: var(--panel); border: 1px solid var(--edge);
+    border-radius: 3px; backdrop-filter: blur(16px); padding: 15px 17px;
+  }
+  .cap { font-size: 9.5px; letter-spacing: .18em; text-transform: uppercase;
+    color: var(--faint); font-weight: 500; }
+
+  /* Шапка */
+  #brand { top: 22px; left: 24px; display: flex; align-items: center; gap: 13px; padding: 11px 17px; }
+  #brand .mark { width: 32px; height: 32px; border-radius: 2px; display: grid; place-items: center;
+    background: var(--crimson); font-size: 16px; font-weight: 500; color: #fff; }
+  #brand h1 { margin: 0; font-size: 13.5px; font-weight: 500; letter-spacing: .09em; text-transform: uppercase; }
+  #brand p { margin: 3px 0 0; font-size: 9.5px; color: var(--faint); letter-spacing: .16em; text-transform: uppercase; }
+  #live { display: inline-flex; align-items: center; gap: 6px; font-size: 9.5px; color: var(--dim);
+    margin-left: 10px; letter-spacing: .14em; }
+  #live::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--steel);
+    animation: beat 2.4s infinite; }
+  @keyframes beat { 0%,100% { opacity: 1; } 50% { opacity: .2; } }
+
+  /* Ключевые числа */
+  #vitals { top: 22px; right: 24px; width: 252px; padding: 14px 17px 12px; }
+  #vitals .cap { display: block; margin-bottom: 11px; }
+  .vital { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 0;
+    border-top: 1px solid rgba(150, 175, 215, .07); }
+  .vital:first-of-type { border-top: 0; padding-top: 0; }
+  .vital span { font-size: 11.5px; color: var(--dim); letter-spacing: .02em; }
+  .vital b { font-size: 16px; font-weight: 300; font-variant-numeric: tabular-nums;
+    transition: color .5s; color: var(--ink); letter-spacing: -.01em; }
+  .vital b.warn { color: var(--warn); } .vital b.crit { color: var(--crit); font-weight: 400; }
+
+  /* Ответ */
+  #answer { top: 262px; right: 24px; width: 306px; max-height: calc(100vh - 360px); overflow-y: auto;
+    opacity: 0; transform: translateX(12px); transition: opacity .4s, transform .4s; pointer-events: none; }
+  #answer.on { opacity: 1; transform: none; pointer-events: auto; }
+  #answer h2 { margin: 0 0 11px; font-size: 13px; font-weight: 500; letter-spacing: .09em; text-transform: uppercase; }
+  .fact { padding: 9px 0; border-top: 1px solid rgba(150, 175, 215, .07);
+    opacity: 0; transform: translateY(5px); animation: rise .45s forwards; }
+  @keyframes rise { to { opacity: 1; transform: none; } }
+  .fact span { display: block; font-size: 10.5px; color: var(--faint); margin-bottom: 3px;
+    letter-spacing: .06em; text-transform: uppercase; }
+  .fact b { font-size: 15px; font-weight: 300; font-variant-numeric: tabular-nums; letter-spacing: -.005em; }
+  .fact b.good { color: var(--steel); } .fact b.bad { color: var(--crit); font-weight: 400; }
+  #answer::-webkit-scrollbar { width: 3px; }
+  #answer::-webkit-scrollbar-thumb { background: rgba(157, 180, 214, .22); }
+
+  /* Сценарий */
+  #scenario { left: 24px; bottom: 138px; width: 288px; }
+  #scenario .cap { display: block; }
+  #scenario > p { margin: 5px 0 12px; font-size: 11px; color: var(--faint); letter-spacing: .01em; }
+  .knob { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+  .knob label { flex: 1; font-size: 11.5px; color: var(--dim); overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; }
+  .knob .step { width: 22px; height: 22px; border-radius: 2px; border: 1px solid var(--edge);
+    background: transparent; color: var(--dim); cursor: pointer; font-size: 14px; line-height: 1;
+    display: grid; place-items: center; transition: .16s; font-family: inherit; }
+  .knob .step:hover { color: var(--ink); border-color: var(--edge-lit); background: rgba(157, 180, 214, .08); }
+  .knob output { width: 26px; text-align: center; font-variant-numeric: tabular-nums;
+    font-weight: 400; font-size: 12.5px; color: var(--faint); }
+  .knob output.plus { color: var(--steel); } .knob output.minus { color: var(--warn); }
+  #reset { margin-top: 11px; width: 100%; padding: 7px; border-radius: 2px; cursor: pointer;
+    border: 1px solid var(--edge); background: transparent; color: var(--faint); font-size: 10px;
+    letter-spacing: .13em; text-transform: uppercase; transition: .16s; font-family: inherit; }
+  #reset:hover { color: var(--ink); border-color: var(--edge-lit); }
+
+  /* Речь */
+  #speech { position: fixed; z-index: 10; left: 50%; bottom: 152px; transform: translateX(-50%);
+    max-width: min(720px, 72vw); text-align: center; font-size: 18px; line-height: 1.55; font-weight: 300;
+    text-shadow: 0 2px 30px rgba(0, 0, 0, .98); opacity: 0; transition: opacity .35s; pointer-events: none; }
+  #speech.on { opacity: 1; }
+
+  /* Вопрос */
+  #ask { left: 50%; bottom: 28px; transform: translateX(-50%); width: min(680px, 84vw);
+    display: flex; gap: 8px; align-items: center; padding: 8px 10px; }
+  #ask input { flex: 1; background: transparent; border: 0; outline: 0; color: var(--ink);
+    font-size: 14.5px; padding: 7px 6px; font-family: inherit; font-weight: 300; }
+  #ask input::placeholder { color: var(--faint); }
+  #ask button { width: 36px; height: 36px; border-radius: 2px; border: 1px solid var(--edge);
+    background: transparent; color: var(--dim); cursor: pointer; font-size: 14px; transition: .18s;
+    font-family: inherit; }
+  #ask button:hover { color: var(--ink); background: rgba(157, 180, 214, .1); border-color: var(--edge-lit); }
+  #mic.live { background: rgba(224, 66, 60, .2); border-color: var(--crit); color: var(--crit);
+    animation: beat 1.2s infinite; }
+
+  #hints { position: fixed; z-index: 10; left: 50%; bottom: 102px; transform: translateX(-50%);
+    display: flex; gap: 7px; flex-wrap: wrap; justify-content: center; max-width: min(720px, 86vw);
+    transition: opacity .3s; }
+  #hints button { padding: 5px 12px; border-radius: 2px; font-size: 11px; cursor: pointer;
+    border: 1px solid var(--edge); background: rgba(7, 11, 18, .7); color: var(--faint);
+    backdrop-filter: blur(10px); transition: .18s; font-family: inherit; letter-spacing: .01em; }
+  #hints button:hover { color: var(--ink); border-color: var(--edge-lit); }
+
+  #boot { position: fixed; inset: 0; display: grid; place-items: center; background: var(--bg); z-index: 50;
+    transition: opacity .8s; font-size: 10px; color: var(--faint); letter-spacing: .3em; text-transform: uppercase; }
+  #boot.gone { opacity: 0; pointer-events: none; }
+  @media (max-width: 1200px) { #scenario, #answer { display: none; } }
+</style>
+</head>
+<body>
+
+<div id="stage"><canvas id="view"></canvas></div>
+<div id="vignette"></div>
+<div id="labels"></div>
+
+<div class="panel" id="brand">
+  <div class="mark">発</div>
+  <div>
+    <h1>Hattatsu Group<span id="live">двойник активен</span></h1>
+    <p id="plant">производственная линия</p>
+  </div>
+</div>
+
+<div class="panel" id="vitals">
+  <span class="cap">Состояние потока</span>
+  <div class="vital"><span>Срок выполнения</span><b id="v-lead">—</b></div>
+  <div class="vital"><span>Просрочено</span><b id="v-late">—</b></div>
+  <div class="vital"><span>Незавершёнка</span><b id="v-wip">—</b></div>
+  <div class="vital"><span>Проходит в день</span><b id="v-flow">—</b></div>
+  <div class="vital"><span>Выручка в месяц</span><b id="v-rev">—</b></div>
+  <div class="vital"><span>Узкое место</span><b id="v-neck" class="crit">—</b></div>
+</div>
+
+<div class="panel" id="answer"><h2 id="a-title"></h2><div id="a-facts"></div></div>
+
+<div class="panel" id="scenario">
+  <span class="cap">Сценарий</span>
+  <p>Меняйте людей на участках — поток пересчитается</p>
+  <div id="knobs"></div>
+  <button id="reset">Вернуть как есть</button>
+</div>
+
+<div id="speech"></div>
+
+<div id="hints">
+  <button>Где узкое место?</button>
+  <button>Где я теряю деньги?</button>
+  <button>Что мне делать?</button>
+  <button>Сколько ждут клиенты?</button>
+  <button>Что если добавить человека на контроль качества?</button>
+</div>
+
+<form class="panel" id="ask" autocomplete="off">
+  <input id="q" placeholder="Спросите предприятие…" autocomplete="off">
+  <button type="button" id="mic" title="Спросить голосом">🎤</button>
+  <button type="submit" title="Отправить">→</button>
+</form>
+
+<div id="boot">поднимаем предприятие</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "/ui3d/vendor/three/three.module.js",
+  "three/addons/": "/ui3d/vendor/addons/"
+} }
+</script>
+<script type="module" src="/page/twin/app.js"></script>
+</body>
+</html>

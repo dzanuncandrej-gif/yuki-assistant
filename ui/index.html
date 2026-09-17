@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Джарвис</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <canvas id="scene" aria-hidden="true"></canvas>
+
+  <main class="overlay">
+    <header class="topbar">
+      <h1 class="brand">Д Ж А Р В И С</h1>
+      <p class="status" id="status" role="status" aria-live="polite">
+        <span class="dot" id="dot"></span><span id="statusText">подключение…</span>
+      </p>
+    </header>
+
+    <section class="log" id="log" aria-label="История диалога" aria-live="polite"></section>
+
+    <form class="composer" id="composer">
+      <label class="sr-only" for="input">Текстовая команда</label>
+      <input id="input" type="text" autocomplete="off" placeholder="Команда текстом — Enter" />
+      <button type="submit" class="btn" id="send">Отправить</button>
+      <button type="button" class="btn ghost" id="mute" aria-pressed="false">Микрофон вкл.</button>
+    </form>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

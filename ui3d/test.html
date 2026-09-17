@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Проверка аватара</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #05070c; overflow: hidden; }
+  #stage { position: absolute; inset: 0; }
+  canvas { display: block; width: 100%; height: 100%; }
+  #log { position: absolute; left: 12px; top: 12px; color: #cfe2ff; font: 12px/1.5 Consolas, monospace;
+         background: rgba(8,14,26,.7); padding: 10px 14px; border: 1px solid #2b4166; border-radius: 10px;
+         max-height: 60vh; overflow: auto; white-space: pre; }
+  #bar { position: absolute; left: 12px; bottom: 12px; display: flex; gap: 6px; flex-wrap: wrap; max-width: 70vw; }
+  button { background: #10192b; color: #cfe2ff; border: 1px solid #2b4166; border-radius: 8px;
+           padding: 6px 10px; font: 12px Consolas, monospace; cursor: pointer; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/three.module.js", "three/addons/": "./vendor/addons/" } }
+</script>
+</head>
+<body>
+<div id="stage"><canvas id="view"></canvas></div>
+<pre id="log">загрузка…</pre>
+<div id="bar"></div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+// свежая версия при каждой перезагрузке: карта модулей вкладки иначе держит старый код
+const V = `?v=${Date.now()}`;
+const { Stage, ACCENT } = await import(`./js/stage.js${V}`);
+const { Character } = await import(`./js/character.js${V}`);
+const { Behaviour } = await import(`./js/behaviour.js${V}`);
+
+const log = document.getElementById('log');
+const say = (text) => { log.textContent = text + '\n' + log.textContent; };
+window.addEventListener('error', (e) => say('ОШИБКА: ' + e.message));
+window.addEventListener('unhandledrejection', (e) => say('ОТКАЗ: ' + (e.reason && e.reason.message || e.reason)));
+
+const stage = new Stage(document.getElementById('view'), { quality: 'high', capture: true });
+const controls = new OrbitControls(stage.camera, stage.renderer.domElement);
+controls.target.set(0, 1.30, 0);
+controls.addEventListener('start', () => { stage.manualCamera = true; });
+controls.update();
+stage.setFraming('bust');
+
+const manifest = await (await fetch('./avatar/avatar.json')).json();
+const character = new Character(manifest, './avatar');
+await character.load((p) => { log.textContent = 'загрузка ' + Math.round(p * 100) + '%'; });
+stage.scene.add(character.root);
+
+const brain = new Behaviour(character);
+say('кости: ' + Object.keys(character.bones).join(', '));
+say('морфов: ' + character.morphNames().length + ' | рост головы: ' + character.headHeight.toFixed(2));
+say('мешей: ' + character.meshes.length);
+
+const bar = document.getElementById('bar');
+const add = (label, fn) => { const b = document.createElement('button'); b.textContent = label; b.onclick = fn; bar.appendChild(b); };
+for (const s of ['idle', 'listening', 'thinking', 'speaking', 'success', 'error']) {
+  add(s, () => { brain.setState(s); stage.setAccent(ACCENT[s]); });
+}
+for (const g of ['greet', 'nod', 'tilt', 'shrug', 'present', 'think']) add('~' + g, () => brain.playGesture(g));
+add('говорит', () => {
+  brain.setState('speaking'); stage.setAccent(ACCENT.speaking);
+  let t = 0;
+  const id = setInterval(() => {
+    t += 0.06;
+    const v = { open: 0.35 + 0.4 * Math.abs(Math.sin(t * 9)), a: 0, e: 0, i: 0, o: 0, u: 0 };
+    const pick = ['a', 'e', 'i', 'o', 'u'][Math.floor(Math.random() * 5)];
+    v[pick] = 1;
+    brain.setViseme(v); brain.setLevel(v.open);
+    if (t > 4) { clearInterval(id); brain.setViseme({ open: 0 }); brain.setState('idle'); }
+  }, 60);
+});
+
+addEventListener('resize', () => stage.resize());
+addEventListener('pointermove', (e) => brain.setPointer(
+  (e.clientX / innerWidth) * 2 - 1, (e.clientY / innerHeight) * 2 - 1, true));
+
+const clock = new THREE.Clock();
+let elapsed = 0;
+function frame() {
+  const delta = Math.min(0.05, clock.getDelta());
+  elapsed += delta;
+  character.update(delta);
+  brain.update(delta, elapsed);
+  stage.render(delta);
+  requestAnimationFrame(frame);
+}
+frame();
+say('готово');
+
+Object.assign(window, { THREE, stage, character, brain, controls });
+
+// контрольный лист по морфам: каждый шейп на отдельной клетке, мозг выключен
+window.morphSheet = async (name, names, cols = 5, time = 8.0) => {
+  const cell = 300;
+  const rows = Math.ceil(names.length / cols);
+  const out = document.createElement('canvas');
+  out.width = cell * cols; out.height = cell * rows;
+  const ctx = out.getContext('2d');
+  const view = document.getElementById('view');
+  stage.manualCamera = true;
+  stage.resize();
+  for (let i = 0; i < names.length; i += 1) {
+    character.mixer.setTime(time);
+    character.root.updateWorldMatrix(true, true);
+    const head = character.bones.head.getWorldPosition(new THREE.Vector3());
+    stage.camera.position.set(head.x + 0.01, head.y + 0.03, head.z + 0.42);
+    stage.camera.lookAt(head.x, head.y + 0.01, head.z);
+    character.clearMorphs();
+    if (names[i]) character.setMorph(names[i], 1);
+    stage.render(1 / 60);
+    const side = Math.min(view.width, view.height);
+    ctx.drawImage(view, (view.width - side) / 2, (view.height - side) / 2, side, side,
+                  (i % cols) * cell, Math.floor(i / cols) * cell, cell, cell);
+    ctx.fillStyle = '#8fd8ff'; ctx.font = '13px monospace';
+    ctx.fillText(names[i] || 'neutral', (i % cols) * cell + 6, Math.floor(i / cols) * cell + 16);
+  }
+  await fetch('/shot', { method: 'POST', body: name + '|' + out.toDataURL('image/png') });
+  return 'ok';
+};
+
+// раскадровка базовой анимации: ищем участок, где фигура стоит лицом к камере
+window.sheet = async (name, times, cols = 4) => {
+  const cell = 320;
+  const rows = Math.ceil(times.length / cols);
+  const out = document.createElement('canvas');
+  out.width = cell * cols; out.height = cell * rows;
+  const ctx = out.getContext('2d');
+  const view = document.getElementById('view');
+  stage.resize();
+  for (let i = 0; i < times.length; i += 1) {
+    character.mixer.setTime(times[i]);
+    brain.update(1 / 60, times[i]);
+    stage.render(1 / 60);
+    ctx.drawImage(view, 0, 0, view.width, view.height,
+                  (i % cols) * cell, Math.floor(i / cols) * cell, cell, cell * view.height / view.width);
+    ctx.fillStyle = '#8fd8ff'; ctx.font = '16px monospace';
+    ctx.fillText(times[i].toFixed(1), (i % cols) * cell + 8, Math.floor(i / cols) * cell + 20);
+  }
+  await fetch('/shot', { method: 'POST', body: name + '|' + out.toDataURL('image/png') });
+  return 'ok';
+};
+// снимок делается своим шагом симуляции: requestAnimationFrame не работает,
+// когда панель браузера скрыта, и кадр в буфере остаётся пустым
+window.shot = async (name, steps = 90) => {
+  stage.resize();
+  const dt = 1 / 60;
+  for (let i = 0; i < steps; i += 1) {
+    elapsed += dt;
+    character.update(dt);
+    brain.update(dt, elapsed);
+    stage.render(dt);
+  }
+  const url = document.getElementById('view').toDataURL('image/png');
+  await fetch('/shot', { method: 'POST', body: name + '|' + url });
+  return url.length;
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+.venv/
+models/
+__pycache__/
+*.pyc
+*.wav
+.env
+config.json
+.DS_Store
+.cache/
+.tools/
+.backup/
+data/memory.json
+data/faces.json
+*.log
+
+# 3D-модели и рисованный референс компаньона: происхождение и права на такое
+# готовое аниме-арт неясны, раздавать в репозитории нельзя. Каждый подставляет
+# свой референс (см. scripts/build_companion_assets.py и README) или свою
+# 3D-модель (см. ui3d/characters/index.json). Без них компаньон рисуется
+# встроенным векторным риггом (desktop/companion/rig.py) — приложение работает.
+ui3d/characters/*/
+assets/companion/reference.png
+assets/companion/parts/

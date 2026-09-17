@@ -1,0 +1,254 @@
+"""Раздел «Сообщения»: выбрать мессенджер, найти человека, продиктовать, отправить.
+
+Порядок шагов на экране повторяет порядок проверок внутри. Кнопка «Отправить»
+недоступна, пока адресат не найден и не подтверждён — не из вежливости, а потому
+что отправленное чужому человеку сообщение не отзывается назад.
+
+Долгие шаги (запуск мессенджера, поиск) идут в отдельном потоке: интерфейс не
+должен замирать на те несколько секунд, пока открывается Telegram.
+"""
+
+from __future__ import annotations
+
+from typing import Callable
+
+from PySide6.QtCore import QObject, Qt, QThread, Signal
+from PySide6.QtWidgets import (
+    QComboBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
+
+from core import outbox
+
+from .controls import Card, Row
+
+
+class _Worker(QObject):
+    """Один долгий шаг в фоне: поиск или отправка."""
+
+    done = Signal(object, str)  # результат, текст ошибки
+
+    def __init__(self, job: Callable[[], object]) -> None:
+        super().__init__()
+        self._job = job
+
+    def run(self) -> None:
+        try:
+            self.done.emit(self._job(), "")
+        except Exception as err:  # noqa: BLE001 — ошибку показываем человеку
+            self.done.emit(None, str(err))
+
+
+class MessagesPage(QWidget):
+    """Отправка сообщения через Telegram, Discord или Steam."""
+
+    speak = Signal(str)          # попросить Юки сказать вслух
+    dictate = Signal()           # попросить надиктовать текст голосом
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._draft: outbox.Draft | None = None
+        self._thread: QThread | None = None
+        self._worker: _Worker | None = None
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 8, 0)
+        layout.setSpacing(14)
+        layout.addWidget(self._who_card())
+        layout.addWidget(self._text_card())
+        layout.addStretch(1)
+        self._refresh()
+
+    # ---------------------------------------------------------------- сборка
+
+    def _who_card(self) -> Card:
+        card = Card("Кому", "Мессенджер и человек. Юки откроет переписку и покажет, кого нашла.")
+
+        self.service = QComboBox()
+        for item in outbox.services():
+            self.service.addItem(item.title, item.key)
+        self.service.setCursor(Qt.CursorShape.PointingHandCursor)
+        card.add(Row("Мессенджер", self.service, "Куда отправлять."))
+
+        self.contact = QLineEdit()
+        self.contact.setPlaceholderText("например: Максиму")
+        self.contact.returnPressed.connect(self._find)
+        card.add(Row("Контакт", self.contact, "Имя так, как вы его называете."))
+
+        self.find_button = QPushButton("Найти контакт")
+        self.find_button.setObjectName("menuAction")
+        self.find_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.find_button.clicked.connect(self._find)
+
+        self.confirm_button = QPushButton("Это он")
+        self.confirm_button.setObjectName("menuGhost")
+        self.confirm_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.confirm_button.clicked.connect(self._confirm)
+
+        self.cancel_button = QPushButton("Отмена")
+        self.cancel_button.setObjectName("menuGhost")
+        self.cancel_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.cancel_button.clicked.connect(self._cancel)
+
+        buttons = QWidget()
+        line = QHBoxLayout(buttons)
+        line.setContentsMargins(0, 0, 0, 0)
+        line.setSpacing(8)
+        line.addWidget(self.find_button)
+        line.addWidget(self.confirm_button)
+        line.addWidget(self.cancel_button)
+        line.addStretch(1)
+        card.add(buttons)
+
+        self.status = QLabel("Выберите мессенджер и введите имя.")
+        self.status.setObjectName("hint")
+        self.status.setWordWrap(True)
+        card.add(self.status)
+        return card
+
+    def _text_card(self) -> Card:
+        card = Card("Что написать", "Наберите текст или продиктуйте голосом.")
+
+        self.message = QTextEdit()
+        self.message.setPlaceholderText("Текст сообщения…")
+        self.message.setFixedHeight(96)
+        self.message.textChanged.connect(self._refresh)
+        card.add(self.message)
+
+        self.dictate_button = QPushButton("Продиктовать")
+        self.dictate_button.setObjectName("menuGhost")
+        self.dictate_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.dictate_button.clicked.connect(self.dictate.emit)
+
+        self.send_button = QPushButton("Отправить")
+        self.send_button.setObjectName("menuAction")
+        self.send_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.send_button.clicked.connect(self._send)
+
+        buttons = QWidget()
+        line = QHBoxLayout(buttons)
+        line.setContentsMargins(0, 0, 0, 0)
+        line.setSpacing(8)
+        line.addWidget(self.dictate_button)
+        line.addWidget(self.send_button)
+        line.addStretch(1)
+        card.add(buttons)
+        return card
+
+    # ---------------------------------------------------------------- состояние
+
+    def _refresh(self) -> None:
+        """Кнопки включаются ровно тогда, когда следующий шаг действительно возможен."""
+        busy = self._thread is not None
+        draft = self._draft
+        ready = draft is not None and bool(draft.found)
+        sure = ready and (draft.certain or draft.confirmed)
+
+        self.find_button.setEnabled(not busy and bool(self.contact.text().strip()))
+        self.confirm_button.setEnabled(not busy and ready and not draft.certain
+                                       and not draft.confirmed)
+        self.cancel_button.setEnabled(not busy and draft is not None)
+        self.send_button.setEnabled(
+            not busy and sure and bool(self.message.toPlainText().strip())
+        )
+
+    def set_dictated(self, text: str) -> None:
+        """Текст, надиктованный голосом, попадает в поле сообщения."""
+        if text.strip():
+            self.message.setPlainText(text.strip())
+            self._refresh()
+
+    # ---------------------------------------------------------------- шаги
+
+    def _run(self, job: Callable[[], object], done: Callable[[object, str], None]) -> None:
+        thread = QThread(self)
+        worker = _Worker(job)
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+
+        def finish(result: object, error: str) -> None:
+            thread.quit()
+            thread.wait(2000)
+            self._thread, self._worker = None, None
+            done(result, error)
+            self._refresh()
+
+        worker.done.connect(finish)
+        self._thread, self._worker = thread, worker
+        self._refresh()
+        thread.start()
+
+    def _find(self) -> None:
+        name = self.contact.text().strip()
+        if not name or self._thread is not None:
+            return
+        service = str(self.service.currentData())
+        self.status.setText(f"Открываю {self.service.currentText()} и ищу «{name}»…")
+        self._draft = None
+
+        def job() -> object:
+            draft = outbox.prepare(service, name)
+            if draft.found:
+                outbox.open_found(draft)
+            return draft
+
+        def done(result: object, error: str) -> None:
+            if error:
+                self.status.setText(f"Не вышло: {error}")
+                return
+            draft = result  # type: ignore[assignment]
+            self._draft = draft
+            if not draft.found:
+                others = ", ".join(draft.candidates) or "ничего похожего"
+                self.status.setText(f"Контакт «{name}» не найден. В списке: {others}")
+                return
+            if draft.certain:
+                self.status.setText(f"Нашла «{draft.found}» — переписка открыта. Можно писать.")
+                self.speak.emit(f"Нашла {draft.found}. Что мне ему написать?")
+            else:
+                others = ", ".join(draft.candidates)
+                self.status.setText(
+                    f"Нашла «{draft.found}», но это не точное совпадение с «{name}». "
+                    f"Варианты: {others}. Нажмите «Это он», если адресат верный."
+                )
+                self.speak.emit(f"Нашла {draft.found}. Это тот человек?")
+
+        self._run(job, done)
+
+    def _confirm(self) -> None:
+        if self._draft is not None:
+            self._draft.confirmed = True
+            self.status.setText(f"Адресат подтверждён: {self._draft.found}. Можно отправлять.")
+            self._refresh()
+
+    def _cancel(self) -> None:
+        outbox.cancel()
+        self._draft = None
+        self.status.setText("Отменено. Ничего не отправлено.")
+        self._refresh()
+
+    def _send(self) -> None:
+        draft, text = self._draft, self.message.toPlainText().strip()
+        if draft is None or not text or self._thread is not None:
+            return
+        self.status.setText(f"Отправляю «{draft.found}»…")
+
+        def job() -> object:
+            return outbox.deliver(draft, text)
+
+        def done(result: object, error: str) -> None:
+            if error:
+                self.status.setText(f"Не отправлено: {error}")
+                return
+            self.status.setText(f"Отправлено: {result}")
+            self.speak.emit(f"Отправила {result}.")
+            self.message.clear()
+            self._draft = None
+
+        self._run(job, done)

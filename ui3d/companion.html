@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Компаньон</title>
+<style>
+  html, body {
+    margin: 0; height: 100%; overflow: hidden;
+    background: transparent;            /* окно на рабочем столе, фона быть не должно */
+    user-select: none; -webkit-user-select: none;
+    cursor: default;
+  }
+  #view { display: block; width: 100%; height: 100%; }
+  #status {
+    position: absolute; left: 50%; bottom: 18%; transform: translateX(-50%);
+    padding: 8px 16px; border-radius: 999px;
+    background: rgba(6, 10, 20, 0.72);
+    border: 1px solid rgba(140, 190, 255, 0.18);
+    color: #cfe0f7; font: 500 12px/1.4 "Segoe UI", system-ui, sans-serif;
+    letter-spacing: .02em; white-space: nowrap;
+    backdrop-filter: blur(14px);
+    transition: opacity .35s ease;
+  }
+  #status.hidden { opacity: 0; }
+  #status.fatal { color: #ffb3c0; border-color: rgba(255, 120, 150, 0.35); }
+</style>
+<script src="./vendor/qwebchannel.js"></script>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/three.module.js", "three/addons/": "./vendor/addons/" } }
+</script>
+</head>
+<body>
+  <canvas id="view"></canvas>
+  <div id="status">Загружаю персонажа…</div>
+  <script type="module" src="./js/companion.js"></script>
+</body>
+</html>
