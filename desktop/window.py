@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from core import bus
+from core import bus, i18n
 
 from .bridge import Bridge
 from .hotkey import GlobalHotkey
@@ -68,8 +68,8 @@ class MainWindow(ControlMenu):
         super().__init__(
             shell.store,
             shell.actions(),
-            extra=(("dialog", "◆  ДИАЛОГ", "Диалог",
-                    "Переписка с Юки, микрофон и уровень голоса", dialog),),
+            extra=(("dialog", i18n.t("◆  ДИАЛОГ"), i18n.t("Диалог"),
+                    i18n.t("Переписка с Юки, микрофон и уровень голоса"), dialog),),
         )
         self._assistant = assistant
         self._bridge = bridge
@@ -116,18 +116,18 @@ class MainWindow(ControlMenu):
         self.tray.setToolTip("Юки")
 
         menu = QMenu()
-        self._action_show = QAction("Показать пульт", self)
+        self._action_show = QAction(i18n.t("Показать пульт"), self)
         self._action_show.triggered.connect(self.show_from_tray)
-        self._action_mic = QAction("Выключить микрофон", self)
+        self._action_mic = QAction(i18n.t("Выключить микрофон"), self)
         self._action_mic.setCheckable(True)
         self._action_mic.toggled.connect(self._on_tray_mic)
-        action_companion = QAction("Персонаж на столе (Ctrl+J)", self)
+        action_companion = QAction(i18n.t("Персонаж на столе (Ctrl+J)"), self)
         action_companion.triggered.connect(self.toggle_companion)
-        action_silence = QAction("Замолчать (Ctrl+Space)", self)
+        action_silence = QAction(i18n.t("Замолчать (Ctrl+Space)"), self)
         action_silence.triggered.connect(self._assistant.interrupt)
-        action_reset = QAction("Очистить контекст (Ctrl+R)", self)
+        action_reset = QAction(i18n.t("Очистить контекст (Ctrl+R)"), self)
         action_reset.triggered.connect(self._assistant.reset)
-        action_quit = QAction("Выход", self)
+        action_quit = QAction(i18n.t("Выход"), self)
         action_quit.triggered.connect(self.quit)
 
         menu.addAction(self._action_show)
@@ -147,9 +147,9 @@ class MainWindow(ControlMenu):
         """Смена голоса из трея — окно для этого открывать не нужно."""
         from core import voices
 
-        submenu = QMenu("Голос", parent)
+        submenu = QMenu(i18n.t("Голос"), parent)
         for profile in voices.catalog():
-            title = profile.title if profile.installed else f"{profile.title} (нет файла)"
+            title = profile.title if profile.installed else f"{profile.title} {i18n.t('(нет файла)')}"
             action = QAction(f"{title} — {profile.character}", self)
             action.setEnabled(profile.installed)
             action.triggered.connect(lambda _=False, key=profile.key: self._on_voice(key))
@@ -160,7 +160,7 @@ class MainWindow(ControlMenu):
 
     def _on_state(self, state: str) -> None:
         self.meter.set_state(state)
-        self.tray.setToolTip(f"Юки — {STATE_LABELS.get(state, state)}")
+        self.tray.setToolTip(f"Юки — {i18n.t(STATE_LABELS.get(state, state))}")
 
     def _on_text(self, text: str) -> None:
         # обращение к LLM блокирующее, поэтому уводим его из потока интерфейса
@@ -179,7 +179,7 @@ class MainWindow(ControlMenu):
         ).start()
 
     def _on_tray_mic(self, muted: bool) -> None:
-        self._action_mic.setText("Включить микрофон" if muted else "Выключить микрофон")
+        self._action_mic.setText(i18n.t("Включить микрофон") if muted else i18n.t("Выключить микрофон"))
         self.composer.set_muted(muted)
         if self._shell.panel is not None:
             self._shell.panel.set_muted(muted)

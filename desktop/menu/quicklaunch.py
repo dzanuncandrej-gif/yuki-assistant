@@ -14,7 +14,7 @@ from typing import Callable
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLineEdit, QPushButton, QWidget
 
-from core import apps, bus
+from core import apps, bus, i18n
 
 from .controls import Card
 from .settings import SettingsStore
@@ -55,7 +55,7 @@ def _tile(name: str, on_click: Callable[[str], None], on_remove: Callable[[str],
     remove = QPushButton("✕")
     remove.setObjectName("menuGhost")
     remove.setFixedSize(28, 38)
-    remove.setToolTip(f"Убрать {name} из панели")
+    remove.setToolTip(i18n.t("Убрать {name} из панели").format(name=name))
     remove.setCursor(Qt.CursorShape.PointingHandCursor)
     remove.clicked.connect(lambda: on_remove(name))
 
@@ -66,7 +66,7 @@ def _tile(name: str, on_click: Callable[[str], None], on_remove: Callable[[str],
 
 def quick_launch_card(store: SettingsStore) -> Card:
     """Карточка с плитками. Список хранится в настройках и переживает перезапуск."""
-    card = Card("Быстрый запуск", "Часто нужные программы. То же самое, что сказать «открой …».")
+    card = Card(i18n.t("Быстрый запуск"), i18n.t("Часто нужные программы. То же самое, что сказать «открой …»."))
 
     grid_holder = QWidget()
     grid = QGridLayout(grid_holder)
@@ -103,7 +103,7 @@ def quick_launch_card(store: SettingsStore) -> Card:
             grid.addWidget(_tile(name, launch, remove), index // COLUMNS, index % COLUMNS)
 
     field = QLineEdit()
-    field.setPlaceholderText("Добавить программу — Enter")
+    field.setPlaceholderText(i18n.t("Добавить программу — Enter"))
     field.returnPressed.connect(add)
 
     adder = QWidget()
@@ -111,7 +111,7 @@ def quick_launch_card(store: SettingsStore) -> Card:
     row.setContentsMargins(0, 0, 0, 0)
     row.setSpacing(8)
     row.addWidget(field, 1)
-    button = QPushButton("ДОБАВИТЬ")
+    button = QPushButton(i18n.t("ДОБАВИТЬ"))
     button.setObjectName("menuGhost")
     button.setCursor(Qt.CursorShape.PointingHandCursor)
     button.clicked.connect(add)

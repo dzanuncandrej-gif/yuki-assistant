@@ -29,6 +29,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from core import i18n
+
 from ..theme import MENU_QSS
 from .controls import Starfield
 from .messages import MessagesPage
@@ -43,7 +45,7 @@ CORNER_RADIUS = 18
 # больше, и плоский список из десятка пунктов читается уже плохо: глазу не за что
 # зацепиться. Группа с заголовком отвечает на вопрос «где это искать» раньше, чем
 # человек прочитает все названия.
-GROUPS: tuple[tuple[str, tuple[tuple[str, str, str, str], ...]], ...] = (
+_RAW_GROUPS: tuple[tuple[str, tuple[tuple[str, str, str, str], ...]], ...] = (
     ("ДЕЙСТВИЯ", (
         ("messages", "✉  СООБЩЕНИЯ", "Сообщения",
          "Telegram, Discord и Steam: найти человека и отправить сообщение"),
@@ -60,6 +62,19 @@ GROUPS: tuple[tuple[str, tuple[tuple[str, str, str, str], ...]], ...] = (
         ("account", "◍  АККАУНТ", "Аккаунт", "Оператор, город, область поиска, состояние системы"),
     )),
 )
+
+
+def _translated_groups() -> tuple[tuple[str, tuple[tuple[str, str, str, str], ...]], ...]:
+    return tuple(
+        (i18n.t(group_title), tuple(
+            (key, i18n.t(caption), i18n.t(title), i18n.t(subtitle))
+            for key, caption, title, subtitle in items
+        ))
+        for group_title, items in _RAW_GROUPS
+    )
+
+
+GROUPS: tuple[tuple[str, tuple[tuple[str, str, str, str], ...]], ...] = _translated_groups()
 
 SECTIONS: tuple[tuple[str, str, str, str], ...] = tuple(
     item for _, items in GROUPS for item in items
@@ -97,7 +112,7 @@ class ControlMenu(QWidget):
         self._extra = {item[0]: item[4] for item in extra}
         self._sections = tuple(item[:4] for item in extra) + SECTIONS
 
-        self.setWindowTitle("Юки — управление")
+        self.setWindowTitle(i18n.t("Юки — управление"))
         self.setObjectName("menuRoot")
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Window)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
@@ -163,7 +178,7 @@ class ControlMenu(QWidget):
             layout.addWidget(caption)
 
         if extra_keys:
-            add_caption("ДИАЛОГ")
+            add_caption(i18n.t("ДИАЛОГ"))
             for key in extra_keys:
                 add_tab(key, dict((item[0], item[1]) for item in self._sections)[key])
         for title, items in GROUPS:
@@ -175,7 +190,7 @@ class ControlMenu(QWidget):
 
         layout.addStretch(1)
 
-        hint = QLabel("ESC — закрыть\nCTRL+ALT+J — окно Юки")
+        hint = QLabel(i18n.t("ESC — закрыть\nCTRL+ALT+J — окно Юки"))
         hint.setObjectName("menuSubtitle")
         layout.addWidget(hint)
         return sidebar

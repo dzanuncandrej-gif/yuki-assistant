@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from core import workflows
+from core import i18n, workflows
 
 from .controls import Card
 
@@ -51,14 +51,14 @@ class ScenariosPage(QWidget):
         layout.setSpacing(14)
 
         card = Card(
-            "Сценарии",
-            "Одна фраза — несколько действий. Скажите «Юки, рабочий режим» или нажмите здесь.",
+            i18n.t("Сценарии"),
+            i18n.t("Одна фраза — несколько действий. Скажите «Юки, рабочий режим» или нажмите здесь."),
         )
         for item in workflows.catalog():
             card.add(self._row(item))
         layout.addWidget(card)
 
-        self.status = QLabel("Выберите сценарий.")
+        self.status = QLabel(i18n.t("Выберите сценарий."))
         self.status.setObjectName("hint")
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
@@ -81,7 +81,7 @@ class ScenariosPage(QWidget):
         text.addWidget(title)
         text.addWidget(steps)
 
-        button = QPushButton("Запустить")
+        button = QPushButton(i18n.t("Запустить"))
         button.setObjectName("menuAction")
         button.setCursor(Qt.CursorShape.PointingHandCursor)
         button.clicked.connect(lambda _=False, name=item.name: self._start(name))

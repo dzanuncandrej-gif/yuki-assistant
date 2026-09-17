@@ -28,6 +28,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from core import i18n
+
 from .theme import AUTHOR, KIND_COLORS, KIND_LABELS, STATE_COLORS, STATE_LABELS
 
 MAX_MESSAGES = 60
@@ -60,7 +62,7 @@ class StatusPill(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self._dot = QLabel()
         self._dot.setFixedSize(7, 7)
-        self._text = QLabel(STATE_LABELS["idle"])
+        self._text = QLabel(i18n.t(STATE_LABELS["idle"]))
         self._text.setObjectName("statusText")
 
         layout = QHBoxLayout(self)
@@ -78,7 +80,7 @@ class StatusPill(QWidget):
 
     def set_state(self, state: str) -> None:
         self._color = STATE_COLORS.get(state, STATE_COLORS["idle"])
-        self._text.setText(STATE_LABELS.get(state, state.upper()))
+        self._text.setText(i18n.t(STATE_LABELS.get(state, state.upper())))
 
     def _breathe(self) -> None:
         """Маркер медленно пульсирует — видно, что ассистент жив."""
@@ -187,7 +189,7 @@ class MessageCard(QFrame):
         self.setObjectName("card")
         self.setProperty("kind", kind)
 
-        who = QLabel(KIND_LABELS.get(kind, kind).upper())
+        who = QLabel(i18n.t(KIND_LABELS.get(kind, kind)).upper())
         who.setProperty("role", "who")
         who.setStyleSheet(f"color: {KIND_COLORS.get(kind, KIND_COLORS['system'])};")
 
@@ -255,15 +257,15 @@ class Composer(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.input = QLineEdit()
-        self.input.setPlaceholderText("Команда — Enter")
+        self.input.setPlaceholderText(i18n.t("Команда — Enter"))
         self.input.returnPressed.connect(self._submit)
 
-        send = QPushButton("ВЫПОЛНИТЬ")
+        send = QPushButton(i18n.t("ВЫПОЛНИТЬ"))
         send.setObjectName("action")
         send.setCursor(Qt.CursorShape.PointingHandCursor)
         send.clicked.connect(self._submit)
 
-        self.mic = QPushButton("МИКРОФОН ВКЛ")
+        self.mic = QPushButton(i18n.t("МИКРОФОН ВКЛ"))
         self.mic.setObjectName("action")
         self.mic.setCheckable(True)
         self.mic.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -284,7 +286,7 @@ class Composer(QWidget):
         self.submitted.emit(text)
 
     def _on_mic(self, muted: bool) -> None:
-        self.mic.setText("МИКРОФОН ВЫКЛ" if muted else "МИКРОФОН ВКЛ")
+        self.mic.setText(i18n.t("МИКРОФОН ВЫКЛ") if muted else i18n.t("МИКРОФОН ВКЛ"))
         self.mic_toggled.emit(muted)
 
     def set_muted(self, muted: bool) -> None:
@@ -309,7 +311,7 @@ class VoiceSelector(QWidget):
         self.box.setObjectName("voiceBox")
         self.box.setCursor(Qt.CursorShape.PointingHandCursor)
         for profile in self._profiles:
-            label = profile.title if profile.installed else f"{profile.title} (нет файла)"
+            label = profile.title if profile.installed else f"{profile.title} {i18n.t('(нет файла)')}"
             self.box.addItem(label, profile.key)
             self.box.setItemData(
                 self.box.count() - 1, f"{profile.character} · {profile.model_name}", Qt.ItemDataRole.ToolTipRole
@@ -320,7 +322,7 @@ class VoiceSelector(QWidget):
         caret.setObjectName("hint")
         caret.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
 
-        self.preview = chrome_button("▶", "Послушать голос")
+        self.preview = chrome_button("▶", i18n.t("Послушать голос"))
         self.preview.clicked.connect(lambda: self.preview_requested.emit(self.current_key()))
 
         layout = QHBoxLayout(self)

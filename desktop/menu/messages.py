@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from core import outbox
+from core import i18n, outbox
 
 from .controls import Card, Row
 
@@ -68,30 +68,30 @@ class MessagesPage(QWidget):
     # ---------------------------------------------------------------- сборка
 
     def _who_card(self) -> Card:
-        card = Card("Кому", "Мессенджер и человек. Юки откроет переписку и покажет, кого нашла.")
+        card = Card(i18n.t("Кому"), i18n.t("Мессенджер и человек. Юки откроет переписку и покажет, кого нашла."))
 
         self.service = QComboBox()
         for item in outbox.services():
             self.service.addItem(item.title, item.key)
         self.service.setCursor(Qt.CursorShape.PointingHandCursor)
-        card.add(Row("Мессенджер", self.service, "Куда отправлять."))
+        card.add(Row(i18n.t("Мессенджер"), self.service, i18n.t("Куда отправлять.")))
 
         self.contact = QLineEdit()
-        self.contact.setPlaceholderText("например: Максиму")
+        self.contact.setPlaceholderText(i18n.t("например: Максиму"))
         self.contact.returnPressed.connect(self._find)
-        card.add(Row("Контакт", self.contact, "Имя так, как вы его называете."))
+        card.add(Row(i18n.t("Контакт"), self.contact, i18n.t("Имя так, как вы его называете.")))
 
-        self.find_button = QPushButton("Найти контакт")
+        self.find_button = QPushButton(i18n.t("Найти контакт"))
         self.find_button.setObjectName("menuAction")
         self.find_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.find_button.clicked.connect(self._find)
 
-        self.confirm_button = QPushButton("Это он")
+        self.confirm_button = QPushButton(i18n.t("Это он"))
         self.confirm_button.setObjectName("menuGhost")
         self.confirm_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.confirm_button.clicked.connect(self._confirm)
 
-        self.cancel_button = QPushButton("Отмена")
+        self.cancel_button = QPushButton(i18n.t("Отмена"))
         self.cancel_button.setObjectName("menuGhost")
         self.cancel_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.cancel_button.clicked.connect(self._cancel)
@@ -106,27 +106,27 @@ class MessagesPage(QWidget):
         line.addStretch(1)
         card.add(buttons)
 
-        self.status = QLabel("Выберите мессенджер и введите имя.")
+        self.status = QLabel(i18n.t("Выберите мессенджер и введите имя."))
         self.status.setObjectName("hint")
         self.status.setWordWrap(True)
         card.add(self.status)
         return card
 
     def _text_card(self) -> Card:
-        card = Card("Что написать", "Наберите текст или продиктуйте голосом.")
+        card = Card(i18n.t("Что написать"), i18n.t("Наберите текст или продиктуйте голосом."))
 
         self.message = QTextEdit()
-        self.message.setPlaceholderText("Текст сообщения…")
+        self.message.setPlaceholderText(i18n.t("Текст сообщения…"))
         self.message.setFixedHeight(96)
         self.message.textChanged.connect(self._refresh)
         card.add(self.message)
 
-        self.dictate_button = QPushButton("Продиктовать")
+        self.dictate_button = QPushButton(i18n.t("Продиктовать"))
         self.dictate_button.setObjectName("menuGhost")
         self.dictate_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.dictate_button.clicked.connect(self.dictate.emit)
 
-        self.send_button = QPushButton("Отправить")
+        self.send_button = QPushButton(i18n.t("Отправить"))
         self.send_button.setObjectName("menuAction")
         self.send_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.send_button.clicked.connect(self._send)
