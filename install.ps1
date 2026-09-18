@@ -61,9 +61,9 @@ if (Get-Command ollama -ErrorAction SilentlyContinue) {
     } else {
         Write-Host "==> Модель $model уже установлена" -ForegroundColor DarkGray
     }
-    if ($installed -notmatch "llava") {
-        Write-Host "==> Качаю модель зрения llava (нужна для «посмотри на экран»)" -ForegroundColor Cyan
-        & ollama pull llava
+    if ($installed -notmatch "qwen2.5vl") {
+        Write-Host "==> Качаю модель зрения qwen2.5vl:3b (нужна для «посмотри на экран»)" -ForegroundColor Cyan
+        & ollama pull qwen2.5vl:3b
     }
 } else {
     Write-Host "!! Ollama не найдена. Установи с https://ollama.com — без неё агент не работает." -ForegroundColor Yellow
