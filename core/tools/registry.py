@@ -290,5 +290,27 @@ def call(name: str, arguments: Mapping[str, Any] | None = None,
         output = target.handler(**prepared)
     except Exception as err:  # noqa: BLE001 — текст ошибки нужен модели для второй попытки
         detail = str(err) or err.__class__.__name__
+        _log_traceback(name, prepared)
         return Result(False, detail, name, prepared)
     return Result(True, str(output), name, prepared)
+
+
+def _log_traceback(name: str, arguments: Mapping[str, Any]) -> None:
+    """Полный стек ошибки — в файл, а не только в короткую строку для модели.
+
+    Модель получает только str(err): «argument 1: unicode string expected
+    instead of int instance» ни о чём не говорит без места, где это случилось.
+    Полный traceback пишется в data/errors.log — туда же, где лежит остальное
+    личное состояние, вне git.
+    """
+    import traceback
+    from pathlib import Path
+
+    try:
+        path = Path(__file__).resolve().parent.parent.parent / "data" / "errors.log"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(f"\n=== {time.strftime('%Y-%m-%d %H:%M:%S')} {name}({dict(arguments)}) ===\n")
+            handle.write(traceback.format_exc())
+    except OSError:
+        pass
