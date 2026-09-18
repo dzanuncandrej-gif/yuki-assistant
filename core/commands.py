@@ -327,7 +327,7 @@ _NOT_MEDIA = re.compile(
     rf"^(?:{_PLAY}|переключи|смени|давай)\s+(?:на\s+)?{_OTHER}(?:\s+(?:{_MUSIC_WORDS}|{_VIDEO_WORDS}))?$"
     rf"|^(?:переключи|смени|пропусти)\s+(?:эту\s+|этот\s+)?(?:{_MUSIC_WORDS}|{_VIDEO_WORDS})$"
     rf"|^{_PLAY}\s+что[\s-]*(?:нибудь|то)\s+другое$"
-    r"|^(?:следующ\w+|дальше|next|skip)(?:\s+(?:трек|песн\w+|видео|ролик|track|song))?$",
+    rf"|^(?:следующ\w+|дальше|next|skip)(?:\s+(?:{_MUSIC_WORDS}|{_VIDEO_WORDS}))?$",
     name="media_next",
     example="включи другую песню",
 )
