@@ -18,8 +18,9 @@ import io
 import re
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 import requests
 
@@ -165,12 +166,12 @@ class Watcher:
                 self.grab(side=256), self.ollama_url, model, "hi", timeout_s=90,
                 num_predict=1, keep_alive=vision.LIVE_KEEP_ALIVE,
             )
-        except Exception:  # noqa: BLE001 — прогрев не обязателен
+        except Exception:
             pass
 
     # ---------------------------------------------------------------- захват
 
-    def _sct(self):  # noqa: ANN202
+    def _sct(self):
         """Свой захватчик на поток: mss не переносится между потоками."""
         grabber = getattr(self._grabber, "sct", None)
         if grabber is None:
@@ -187,7 +188,7 @@ class Watcher:
         if grabber is not None:
             try:
                 grabber.close()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
 
     def _shot(self, side: int, quality: int = 70) -> tuple[bytes, Any]:
@@ -235,7 +236,7 @@ class Watcher:
             try:
                 jpeg, image = self._shot(self.preview_side, quality=60)
                 failures = 0
-            except Exception as err:  # noqa: BLE001 — экран мог смениться или заблокироваться
+            except Exception as err:
                 failures += 1
                 self.stats.errors += 1
                 self.stats.last_error = f"захват: {err.__class__.__name__}"
@@ -253,7 +254,7 @@ class Watcher:
 
             try:
                 signature = self._signature_of(image)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 signature = b""
             if signature and self._distance(signature, self._signature) > CHANGE_BITS:
                 self._signature = signature
@@ -283,7 +284,7 @@ class Watcher:
                 continue  # человек говорит с ней — видеокарта сейчас нужна ответу
             try:
                 self.refresh()
-            except Exception as err:  # noqa: BLE001
+            except Exception as err:
                 self.frame = Frame(error=str(err), at=time.monotonic())
 
     # ---------------------------------------------------------------- модель зрения
@@ -320,7 +321,7 @@ class Watcher:
                             image,
                             self.ollama_url,
                             model,
-                            vision._prompt_for(model, prompt),  # noqa: SLF001
+                            vision._prompt_for(model, prompt),
                             timeout_s,
                             num_predict=words,
                             keep_alive=vision.LIVE_KEEP_ALIVE,
@@ -368,7 +369,7 @@ class Watcher:
             from . import screen
 
             parts.append(screen.scene().summary(limit=10))
-        except Exception:  # noqa: BLE001 — дерево недоступно, обойдёмся описанием
+        except Exception:
             pass
         frame = self.frame
         if frame.caption and frame.age <= max_age_s:

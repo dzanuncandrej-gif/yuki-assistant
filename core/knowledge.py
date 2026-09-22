@@ -20,9 +20,9 @@ import json
 import re
 import threading
 import time
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterable, Sequence
 
 import numpy as np
 import requests
@@ -147,7 +147,7 @@ def load(character: str) -> Base | None:
     try:
         vectors = np.load(index)["vectors"].astype(np.float32)
         payload = json.loads(meta.read_text(encoding="utf-8"))
-    except Exception as err:  # noqa: BLE001 — битый индекс не должен ронять ассистента
+    except Exception as err:
         raise KnowledgeError(f"база знаний повреждена: {str(err)[:120]}") from err
 
     base = Base(
@@ -196,7 +196,7 @@ def build(character: str, paths: list[Path], url: str,
             chunks.extend(documents.read(path))
         except documents.DocumentError as err:
             problems.append(str(err))
-        except Exception as err:  # noqa: BLE001 — один файл не должен рушить загрузку
+        except Exception as err:
             problems.append(f"«{path.name}»: {str(err)[:90]}")
 
     if not chunks:

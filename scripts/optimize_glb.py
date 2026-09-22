@@ -172,7 +172,7 @@ def rebuild(meta: dict[str, Any], binary: bytearray, drop: tuple[str, ...],
         try:
             picture = Image.open(io.BytesIO(chunks[view_index]))
             picture.load()
-        except Exception as err:  # noqa: BLE001 — не картинка, оставляем как есть
+        except Exception as err:
             notes.append(f"  пропуск картинки {index}: {str(err)[:60]}")
             continue
 

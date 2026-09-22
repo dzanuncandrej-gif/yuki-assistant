@@ -20,8 +20,9 @@ import threading
 import time
 import uuid
 import wave
+from collections.abc import Callable, Iterator, Mapping
 from pathlib import Path
-from typing import Any, Callable, Iterator, Mapping
+from typing import Any
 
 import numpy as np
 
@@ -259,7 +260,7 @@ class Speaker:
             settings = Path(f"{path}.json")
             try:
                 loaded = PiperVoice.load(path, config_path=str(settings) if settings.exists() else None)
-            except Exception:  # noqa: BLE001 — не удалось прогреть один голос, остальные не страдают
+            except Exception:
                 continue
             with self._swap:
                 self._loaded[path] = loaded
@@ -448,7 +449,7 @@ class Speaker:
                     shaped = voicefx.shape(samples, rate, **self._fx)
                     collected.append(shaped)
                     yield shaped, rate
-            except Exception as err:  # noqa: BLE001 — пробуем следующий движок
+            except Exception as err:
                 errors.append(f"{engine}: {err}")
                 if produced:
                     return  # часть уже прозвучала, второй движок начнёт с начала — не надо
@@ -497,7 +498,7 @@ class Speaker:
             from . import bus
 
             bus.bus.log("system", f"TTS: {message}")
-        except Exception:  # noqa: BLE001 — синтез не должен падать из-за журнала
+        except Exception:
             pass
 
     def diagnose(self) -> str:
@@ -508,13 +509,12 @@ class Speaker:
             parts.append("модель Piper не скачана")
         try:
             import piper  # noqa: F401
-
             from piper import PiperVoice  # noqa: F401
 
             if self._piper_model is not None and self._piper_model.exists():
                 self._piper_voice.phonemize("тест")
                 parts.append("Piper готов")
-        except Exception as err:  # noqa: BLE001
+        except Exception as err:
             parts.append(f"Piper недоступен ({str(err)[:80]})")
         parts.append("Edge доступен" if self._edge_available() else "Edge не установлен")
         return "; ".join(parts)
@@ -523,7 +523,7 @@ class Speaker:
 
     def _cache_key(self, text: str) -> str:
         profile = self._profile.key if self._profile is not None else "default"
-        digest = hashlib.sha1(f"{profile}|{self._engine_name}|{text}".encode("utf-8")).hexdigest()[:20]
+        digest = hashlib.sha1(f"{profile}|{self._engine_name}|{text}".encode()).hexdigest()[:20]
         return f"{profile}_{digest}.wav"
 
     def _cache_read(self, text: str) -> Chunk | None:
@@ -533,8 +533,8 @@ class Speaker:
         if not path.exists():
             return None
         try:
-            samples, rate = voicefx._read(path)  # noqa: SLF001 — общий разбор WAV
-        except Exception:  # noqa: BLE001 — битый файл кэша просто игнорируем
+            samples, rate = voicefx._read(path)
+        except Exception:
             path.unlink(missing_ok=True)
             return None
         return samples, rate
@@ -543,9 +543,9 @@ class Speaker:
         if len(text) > _CACHE_LIMIT or not chunks or rate <= 0:
             return
         try:
-            voicefx._write(self._cache_dir / self._cache_key(text), np.concatenate(chunks), rate)  # noqa: SLF001
+            voicefx._write(self._cache_dir / self._cache_key(text), np.concatenate(chunks), rate)
             self._prune_cache()
-        except Exception:  # noqa: BLE001 — кэш не критичен
+        except Exception:
             pass
 
     def _prune_cache(self) -> None:
@@ -612,7 +612,7 @@ class Speaker:
                     text=_for_silero(piece), speaker=speaker, sample_rate=rate,
                     put_accent=True, put_yo=True,
                 )
-            except Exception as err:  # noqa: BLE001 — на «пустой» фразе Silero ругается
+            except Exception as err:
                 if "no supported" in str(err).lower() or not piece.strip(" .,!?"):
                     continue
                 raise
@@ -716,7 +716,7 @@ class Speaker:
             if not target.exists() or target.stat().st_size == 0:
                 continue
             try:
-                samples, rate = voicefx._read(target)  # noqa: SLF001 — общий разбор WAV
+                samples, rate = voicefx._read(target)
                 yield samples, rate
             finally:
                 target.unlink(missing_ok=True)
@@ -778,7 +778,7 @@ class Voice:
         try:
             for _ in self.speaker.stream("Готов."):
                 break
-        except Exception:  # noqa: BLE001 — прогрев не обязателен
+        except Exception:
             pass
 
     def prime_cache(self, phrases: tuple[str, ...] = COMMON_PHRASES) -> int:
@@ -795,7 +795,7 @@ class Voice:
                 for _ in self.speaker.stream(phrase):
                     pass
                 ready += 1
-            except Exception:  # noqa: BLE001 — не удалось заготовить, синтезируется на месте
+            except Exception:
                 continue
         return ready
 
@@ -857,7 +857,7 @@ class Voice:
                             continue
                     if stop():
                         break
-            except Exception as err:  # noqa: BLE001 — отдаём наверх после остановки очереди
+            except Exception as err:
                 failure.append(err)
             finally:
                 try:

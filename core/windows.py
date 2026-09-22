@@ -92,7 +92,7 @@ def rect(window: WindowInfo) -> tuple[int, int, int, int]:
     """Границы окна (left, top, right, bottom) — нужны для кликов по элементам интерфейса."""
     try:
         return tuple(int(value) for value in win32gui.GetWindowRect(window.hwnd))  # type: ignore[return-value]
-    except Exception as err:  # noqa: BLE001
+    except Exception as err:
         raise WindowError(f"не удалось получить размеры окна «{window.label}»") from err
 
 
@@ -170,7 +170,7 @@ def focus(window: WindowInfo, timeout_s: float = 2.0) -> str:
     while time.monotonic() < deadline:
         try:
             _attach_and_activate(window.hwnd)
-        except Exception:  # noqa: BLE001 — пробуем ещё раз через topmost-трюк
+        except Exception:
             pass
         time.sleep(0.15)
         if win32gui.GetForegroundWindow() == window.hwnd:
@@ -186,7 +186,7 @@ def focus(window: WindowInfo, timeout_s: float = 2.0) -> str:
                     window.hwnd, win32con.HWND_NOTOPMOST, 0, 0, 0, 0,
                     win32con.SWP_NOMOVE | win32con.SWP_NOSIZE,
                 )
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
     if win32gui.GetForegroundWindow() != window.hwnd:
         raise WindowError(f"окно «{window.label}» не получило фокус — ввод ушёл бы не туда")

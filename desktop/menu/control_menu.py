@@ -6,7 +6,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable, Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
+from typing import Any
 
 from PySide6.QtCore import (
     QEasingCurve,
@@ -34,8 +35,8 @@ from core import i18n
 from ..theme import MENU_QSS
 from .controls import Starfield
 from .messages import MessagesPage
+from .pages import Actions, account_page, ai_page, character_page, language_page, voice_page
 from .scenarios import ScenariosPage
-from .pages import Actions, ai_page, account_page, character_page, language_page, voice_page
 from .settings import SettingsStore
 
 WINDOW_SIZE = QSize(1080, 700)
@@ -366,7 +367,7 @@ class ControlMenu(QWidget):
 
     # ---------------------------------------------------------------- окно
 
-    def mousePressEvent(self, event) -> None:  # noqa: ANN001, N802 — Qt-нейминг
+    def mousePressEvent(self, event) -> None:
         if event.button() == Qt.MouseButton.LeftButton and event.position().y() < 90:
             handle = self.windowHandle()
             if handle is not None:
@@ -374,7 +375,7 @@ class ControlMenu(QWidget):
                 return
         super().mousePressEvent(event)
 
-    def resizeEvent(self, event) -> None:  # noqa: ANN001, N802
+    def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         self.background.setGeometry(self.rect())
         self.background.lower()
@@ -382,7 +383,7 @@ class ControlMenu(QWidget):
         path.addRoundedRect(0, 0, self.width(), self.height(), CORNER_RADIUS, CORNER_RADIUS)
         self.setMask(QRegion(path.toFillPolygon().toPolygon()))
 
-    def closeEvent(self, event) -> None:  # noqa: ANN001, N802
+    def closeEvent(self, event) -> None:
         self._store.flush()
         self.closed.emit()
         super().closeEvent(event)

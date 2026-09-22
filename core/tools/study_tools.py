@@ -18,7 +18,7 @@ def set_camera(camera: object) -> None:
     _runtime["camera"] = camera
 
 
-def _agent():  # noqa: ANN202
+def _agent():
     agent = _runtime["agent"]
     if agent is None or not getattr(agent, "available", lambda: False)():
         raise RuntimeError("языковая модель недоступна — запусти ollama serve")

@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import datetime as dt
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 _lock = threading.Lock()
-_items: list["Reminder"] = []
+_items: list[Reminder] = []
 _speak: Callable[[str], None] | None = None
 
 

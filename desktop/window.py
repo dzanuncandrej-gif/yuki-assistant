@@ -14,7 +14,7 @@ from __future__ import annotations
 import threading
 from typing import Any
 
-from PySide6.QtCore import QTimer, Qt
+from PySide6.QtCore import QTimer
 from PySide6.QtGui import QAction, QIcon, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
@@ -208,7 +208,7 @@ class MainWindow(ControlMenu):
         self.raise_()
         self.activateWindow()
 
-    def closeEvent(self, event) -> None:  # noqa: ANN001, N802 — Qt-нейминг
+    def closeEvent(self, event) -> None:
         """Крестик прячет пульт в трей: персонаж на столе продолжает жить."""
         self._store.flush()
         if self._quitting:

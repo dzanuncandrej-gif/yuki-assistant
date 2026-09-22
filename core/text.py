@@ -8,7 +8,7 @@ Whisper отдаёт фразу целиком: «Юки, открой теле�
 from __future__ import annotations
 
 import re
-from typing import Pattern
+from re import Pattern
 
 # имена, на которые ассистент откликается: у каждого голоса своё обращение
 WAKE_NAMES: dict[str, tuple[str, ...]] = {

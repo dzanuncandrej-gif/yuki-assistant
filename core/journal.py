@@ -13,8 +13,8 @@ from __future__ import annotations
 import threading
 import time
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable
 
 MAX_ENTRIES = 60
 
@@ -60,7 +60,7 @@ def undo_last() -> str:
         return "нечего отменять"
     try:
         result = target.undo()  # type: ignore[misc]
-    except Exception as err:  # noqa: BLE001 — откат не должен ронять ассистента
+    except Exception as err:
         return f"не удалось отменить «{target.action}»: {err}"
     target.undone = True
     return result or f"отменил: {target.action}"

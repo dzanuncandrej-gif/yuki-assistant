@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import sys
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QSurfaceFormat

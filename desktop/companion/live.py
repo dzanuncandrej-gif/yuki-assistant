@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import time
 
-from PySide6.QtCore import QTimer, Qt, Signal
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QCursor
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 
@@ -100,7 +100,7 @@ class LiveCharacter(QWidget):
         self.view.advance(delta)
         self.view.update()
 
-    def mousePressEvent(self, event) -> None:  # noqa: ANN001, N802 — Qt-нейминг
+    def mousePressEvent(self, event) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
             self.animator.play("happy", 1.8)
             self.clicked.emit()

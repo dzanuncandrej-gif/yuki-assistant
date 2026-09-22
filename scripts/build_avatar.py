@@ -25,8 +25,9 @@ import shutil
 import struct
 import subprocess
 import sys
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 import numpy as np
 
@@ -150,7 +151,7 @@ class Glb:
         self.blob = blob
 
     @classmethod
-    def read(cls, path: Path) -> "Glb":
+    def read(cls, path: Path) -> Glb:
         raw = path.read_bytes()
         _, _, _ = struct.unpack("<III", raw[:12])
         offset = 12

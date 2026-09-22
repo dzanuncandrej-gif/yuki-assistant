@@ -11,14 +11,29 @@ import random
 import re
 import threading
 import time
-from typing import Any, Mapping
-
-import numpy as np
+from collections.abc import Mapping
+from typing import Any
 
 from . import agent as agent_module
-from . import audio, bus, camera, commands, language, lexicon, live, messengers, mood, questions, reminders, stt
+from . import (
+    audio,
+    bus,
+    camera,
+    commands,
+    language,
+    lexicon,
+    live,
+    messengers,
+    mood,
+    questions,
+    reminders,
+    stt,
+    tools,
+    tts,
+    voices,
+    web,
+)
 from . import text as text_utils
-from . import tools, tts, voices, web
 
 _ECHO_TAIL_S = 0.35  # столько после своей реплики микрофон ещё игнорируется (хвост эха)
 _BARGE_IN_GRACE_S = 1.2  # столько от начала реплики перебить нельзя — защита от эха
@@ -258,7 +273,7 @@ class Assistant:
             lexicon.teach(apps.BUILTIN.keys())
             # названия ярлыков из «Пуска»: «фотошоп», «дискорд», «стим» и прочее
             lexicon.teach(name for name in apps.shortcut_index() if len(name) < 24)
-        except Exception:  # noqa: BLE001 — словарь не критичен для работы
+        except Exception:
             pass
 
     # ---------------------------------------------------------------- жизненный цикл
@@ -325,7 +340,7 @@ class Assistant:
                 self._handle_utterance(utterance)
                 self._mic.drain()
                 bus.bus.set_state(bus.LISTENING)
-        except Exception as err:  # noqa: BLE001 — сообщаем в UI, а не падаем молча
+        except Exception as err:
             bus.bus.log("error", f"Цикл остановлен: {err}")
             bus.bus.set_state(bus.IDLE)
 
@@ -446,7 +461,7 @@ class Assistant:
 
     # ---------------------------------------------------------------- разбор реплики
 
-    def _handle_utterance(self, utterance) -> None:  # noqa: ANN001
+    def _handle_utterance(self, utterance) -> None:
         bus.bus.set_state(bus.THINKING)
         started = time.monotonic()
         text, _ = self._transcriber.transcribe(utterance)
@@ -478,7 +493,7 @@ class Assistant:
             bus.bus.log("user", text)
             try:
                 catcher(text)
-            except Exception as err:  # noqa: BLE001 — ошибка получателя не рушит цикл
+            except Exception as err:
                 bus.bus.log("error", f"диктовка: {err}")
             bus.bus.set_state(bus.LISTENING)
             return
@@ -543,7 +558,7 @@ class Assistant:
     def live(self) -> bool:
         return self._watcher is not None
 
-    def _on_scene(self, frame) -> None:  # noqa: ANN001
+    def _on_scene(self, frame) -> None:
         """Новая сцена на экране: запоминаем и, если видно проблему, помогаем сами."""
         log = self._call_log
         if log is not None and frame.caption:
@@ -567,9 +582,9 @@ class Assistant:
         bus.bus.log("assistant", note)
         threading.Thread(target=self.say, args=(note,), name="jarvis-hint", daemon=True).start()
 
-    def _on_gesture(self, event) -> None:  # noqa: ANN001
+    def _on_gesture(self, event) -> None:
         """Жест рукой — короткая команда без слов. Выполняется мгновенно, без модели."""
-        from . import automation, web
+        from . import automation
 
         kind = event.kind
         try:
@@ -605,7 +620,7 @@ class Assistant:
                 self.set_muted(muted)
                 self._short_reply("Микрофон выключен." if muted else "Слушаю.")
                 return
-        except Exception as err:  # noqa: BLE001 — жест не должен ронять камеру
+        except Exception as err:
             bus.bus.log("error", f"жест {kind}: {err}")
 
     def _short_reply(self, text: str) -> None:
@@ -628,7 +643,7 @@ class Assistant:
                     on_gesture=self._on_gesture if settings.get("gestures", True) else None,
                 )
                 device.start()
-            except Exception as err:  # noqa: BLE001 — без камеры звонок работает дальше
+            except Exception as err:
                 bus.bus.log("system", f"Камера недоступна: {str(err)[:120]}")
                 return
             self._camera = device
@@ -646,7 +661,7 @@ class Assistant:
             device.stop()
 
     @property
-    def camera(self):  # noqa: ANN201
+    def camera(self):
         return self._camera
 
     def start_live(self) -> str:
@@ -689,7 +704,7 @@ class Assistant:
             return summary
         return "Отключаюсь."
 
-    def _summarize_call(self, log) -> str:  # noqa: ANN001
+    def _summarize_call(self, log) -> str:
         """Короткий итог звонка. Он же уходит в долгую память — разговор не пропадает."""
         if log is None or (not log.lines and not log.scenes) or log.minutes < 0.4:
             return ""
@@ -700,7 +715,7 @@ class Assistant:
                 "Подведи итог видеозвонка одним-двумя предложениями: о чём говорили и что "
                 f"было на экране. Без вступлений.\n\n{log.digest()}"
             )
-        except Exception:  # noqa: BLE001 — итог не критичен
+        except Exception:
             return ""
         summary = summary.strip()
         if not summary:
@@ -709,7 +724,7 @@ class Assistant:
             from . import memory
 
             memory.remember(f"Видеозвонок {time.strftime('%d.%m %H:%M')}: {summary}", tag="звонки")
-        except Exception:  # noqa: BLE001
+        except Exception:
             pass
         return f"Отключаюсь. {summary}"
 
@@ -736,7 +751,7 @@ class Assistant:
         # односложные реплики принимаем только если это явная команда: «стоп», «дальше»
         return directed if len(clean.split()) < 2 else directed
 
-    def _respond_stream(self, text: str, turn: int):  # noqa: ANN201 — Iterator[str]
+    def _respond_stream(self, text: str, turn: int):
         """Быстрая точная команда, иначе — агент с инструментами.
 
         Ответ отдаётся кусками: синтез начинает говорить с первого готового
@@ -752,7 +767,7 @@ class Assistant:
                 bus.bus.log("system", "смотрю на экран…")
                 yield watcher.ask(clean)
                 return
-            except Exception as err:  # noqa: BLE001 — не увидел, отвечаем обычным путём
+            except Exception as err:
                 bus.bus.log("error", f"зрение: {err}")
 
         # Быстрый путь выполняет всё, что умеет, а невыполненный хвост просьбы
@@ -840,7 +855,7 @@ class Assistant:
         """
         return self._stop.is_set() or self._turn != turn or self._speech_stop.is_set()
 
-    def _with_filler(self, pieces, turn: int):  # noqa: ANN001, ANN202 — Iterator[str]
+    def _with_filler(self, pieces, turn: int):
         """Отвечает коротким «секунду», если ответ задерживается дольше обычного.
 
         Человек, задавший вопрос в тишину, через две секунды считает, что его не
@@ -872,7 +887,7 @@ class Assistant:
                     if dropped.is_set() or self._cancelled(turn):
                         break
                     box.put(("text", piece))
-            except Exception as err:  # noqa: BLE001 — ошибку отдаём в основной поток
+            except Exception as err:
                 box.put(("error", err))
             finally:
                 closer = getattr(pieces, "close", None)
@@ -911,7 +926,7 @@ class Assistant:
         finally:
             dropped.set()
 
-    def say_stream(self, pieces) -> str:  # noqa: ANN001 — Iterable[str]
+    def say_stream(self, pieces) -> str:
         """Произносит ответ по мере его появления и возвращает сказанное целиком.
 
         Речь начинается с первого законченного предложения, поэтому пауза между
@@ -920,7 +935,7 @@ class Assistant:
         voice = self._voice
         collected: list[str] = []
 
-        def tracked():  # noqa: ANN202
+        def tracked():
             for piece in pieces:
                 if piece:
                     if not collected:
@@ -951,7 +966,7 @@ class Assistant:
             try:
                 voice.say_stream(tracked(), should_stop=cancelled,
                                  on_level=self._on_output_level, on_viseme=self._on_viseme)
-            except Exception as err:  # noqa: BLE001
+            except Exception as err:
                 bus.bus.log("error", f"TTS: {err}")
                 # синтез отвалился — текст всё равно дочитываем из модели,
                 # иначе ответ пропадёт и из журнала, и из памяти разговора
@@ -1017,7 +1032,7 @@ class Assistant:
             if profile is not None and voice.profile is not profile:
                 voice.set_profile(profile)
                 bus.bus.log("system", f"Голос: {profile.title} ({profile.character}).")
-        except Exception as err:  # noqa: BLE001 — голос не найден, остаётся текущий
+        except Exception as err:
             bus.bus.log("error", f"Голос «{wanted}» не поставился: {err}")
 
     def greet(self, text: str, timeout: float = 90.0) -> None:
@@ -1118,7 +1133,7 @@ class Assistant:
             bus.bus.log("user", clean)
             try:
                 catcher(clean)
-            except Exception as err:  # noqa: BLE001
+            except Exception as err:
                 bus.bus.log("error", f"диктовка: {err}")
             bus.bus.set_state(bus.LISTENING)
             return
@@ -1139,7 +1154,7 @@ class Assistant:
 
     # ---------------------------------------------------------------- перехват реплики
 
-    def capture_next(self, handler, timeout_s: float = 60.0) -> None:  # noqa: ANN001
+    def capture_next(self, handler, timeout_s: float = 60.0) -> None:
         """Следующая фраза человека уйдёт этому получателю, а не агенту.
 
         Так работает диктовка: Юки спросила «что написать», и услышанное должно
@@ -1149,7 +1164,7 @@ class Assistant:
         with self._catch_lock:
             self._catcher = (handler, time.monotonic() + max(5.0, timeout_s))
 
-    def _take_catcher(self):  # noqa: ANN202
+    def _take_catcher(self):
         """Забирает получателя реплики, если он ещё ждёт и не просрочен."""
         with self._catch_lock:
             item = self._catcher
@@ -1205,7 +1220,7 @@ class Assistant:
                     "одним словом НЕТ.\n\nРеплика: " + question.strip(),
                     num_predict=90,
                 )
-            except Exception:  # noqa: BLE001 — память не критична для разговора
+            except Exception:
                 return
             for fact in _facts_from(raw):
                 try:

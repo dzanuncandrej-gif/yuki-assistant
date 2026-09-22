@@ -28,9 +28,8 @@ from fastapi.staticfiles import StaticFiles
 
 from core import config, guard
 from core import text as text_utils
-from core.twin import PLANT, Scenario
+from core.twin import PLANT, Scenario, metrics, narrate
 from core.twin import intent as routing
-from core.twin import metrics, narrate
 
 ROOT = Path(__file__).resolve().parent.parent
 PAGE = Path(__file__).resolve().parent / "page"
@@ -236,7 +235,7 @@ def create_app() -> FastAPI:
                 await asyncio.to_thread(metrics.simulate, PLANT)
                 await asyncio.to_thread(metrics.best_move, PLANT)
                 await asyncio.to_thread(metrics.bottleneck, PLANT)
-            except Exception:  # noqa: BLE001 — прогрев не обязан удаться
+            except Exception:
                 pass
             try:
                 import requests
@@ -248,20 +247,20 @@ def create_app() -> FastAPI:
                         "messages": [{"role": "user", "content": "ок"}],
                         "options": {"num_predict": 1},
                     }, timeout=300)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
             try:
                 # Первый синтез поднимает модель Piper и стоит около двух с
                 # половиной секунд — ровно один раз и заранее, а не при госте.
                 await asyncio.to_thread(_render_voice, "Предприятие на связи.",
                                         voice_profile, settings)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
 
         asyncio.create_task(prepare())
 
     @asynccontextmanager
-    async def lifespan(_app: FastAPI):  # noqa: ANN202
+    async def lifespan(_app: FastAPI):
         await warm()
         yield
 
@@ -312,7 +311,7 @@ def create_app() -> FastAPI:
             raise HTTPException(400, "нечего произносить")
         try:
             data = await asyncio.to_thread(_render_voice, clean, voice_profile, settings)
-        except Exception as err:  # noqa: BLE001 — без голоса сцена работает дальше
+        except Exception as err:
             raise HTTPException(503, f"синтез недоступен: {str(err)[:120]}") from err
         return Response(content=data, media_type="audio/wav")
 
@@ -359,11 +358,13 @@ def create_app() -> FastAPI:
                 loop = asyncio.get_running_loop()
                 box: asyncio.Queue = asyncio.Queue()
 
-                def pump() -> None:
+                # переменные цикла связываются значениями по умолчанию — поток
+                # обязан работать с тем вопросом, ради которого его завели
+                def pump(reading=reading, question=question, loop=loop, box=box) -> None:
                     try:
                         for sentence in narrate.narrate(reading, question, url, talk):
                             loop.call_soon_threadsafe(box.put_nowait, ("say", sentence))
-                    except Exception as err:  # noqa: BLE001
+                    except Exception as err:
                         loop.call_soon_threadsafe(box.put_nowait, ("fail", str(err)[:160]))
                     finally:
                         loop.call_soon_threadsafe(box.put_nowait, ("end", None))

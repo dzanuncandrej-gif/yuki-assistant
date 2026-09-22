@@ -22,11 +22,11 @@ from .skin import DEFAULT_SKIN, Skin
 from .widget import CharacterWidget
 
 __all__ = [
+    "DEFAULT_SKIN",
+    "EMOTIONS",
     "Animator",
     "CharacterWidget",
     "CompanionPanel",
-    "DEFAULT_SKIN",
-    "EMOTIONS",
     "Emotion",
     "Pose",
     "Skin",

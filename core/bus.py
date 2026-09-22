@@ -9,7 +9,8 @@ from __future__ import annotations
 import asyncio
 import threading
 import time
-from typing import Any, Callable, Final
+from collections.abc import Callable
+from typing import Any, Final
 
 IDLE: Final = "idle"
 LISTENING: Final = "listening"
@@ -102,7 +103,7 @@ class EventBus:
         for callback in callbacks:
             try:
                 callback(event)
-            except Exception:  # noqa: BLE001 — сломанный слушатель не должен ронять ассистента
+            except Exception:
                 pass
 
         loop = self._loop

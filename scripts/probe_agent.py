@@ -15,9 +15,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core import agent as agent_module  # noqa: E402
-from core import config, tools  # noqa: E402
-from core.tools import registry  # noqa: E402
+from core import agent as agent_module
+from core import config, tools
+from core.tools import registry
 
 PHRASES = (
     "открой телеграм и напиши Владимиру привет",
@@ -46,7 +46,7 @@ def main() -> int:
         brain["model"] = sys.argv[1]
     calls: list[str] = []
 
-    def fake_call(name, arguments=None, confirmed=False):  # noqa: ANN001, ANN202
+    def fake_call(name, arguments=None, confirmed=False):
         calls.append(f"{name}({arguments})")
         if registry.get(name) is None:
             return registry.Result(False, f"инструмента «{name}» нет", name, arguments or {})

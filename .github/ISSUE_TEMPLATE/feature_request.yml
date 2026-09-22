@@ -1,0 +1,38 @@
+name: Идея
+description: Предложить возможность или инструмент
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Какая задача не решается сейчас
+      placeholder: Приходится вручную…
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Как это могло бы работать
+      placeholder: Сказать «…» — и Юки…
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Какой части касается
+      options:
+        - Распознавание речи и команды
+        - Синтез голоса
+        - Инструменты и действия в системе
+        - Экранный компаньон и интерфейс
+        - Видеосвязь, зрение, камера
+        - Веб-режим
+        - Другое
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Необратимость
+      options:
+        - label: Предложенное действие может что-то удалить, отправить или запустить чужой код — значит, ему нужно подтверждение человека

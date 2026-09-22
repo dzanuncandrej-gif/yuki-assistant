@@ -10,7 +10,7 @@
 
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 from PySide6.QtCore import QObject, Qt, QThread, Signal
 from PySide6.QtWidgets import (
@@ -41,7 +41,7 @@ class _Worker(QObject):
     def run(self) -> None:
         try:
             self.done.emit(self._job(), "")
-        except Exception as err:  # noqa: BLE001 — ошибку показываем человеку
+        except Exception as err:
             self.done.emit(None, str(err))
 
 

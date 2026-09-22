@@ -72,11 +72,11 @@ def _guess(path: Path) -> bytes:
 class AssetHandler(QWebEngineUrlSchemeHandler):
     """Читает файлы из `ui3d/`, не выпуская запросы за пределы этой папки."""
 
-    def __init__(self, root: Path = ROOT, parent=None) -> None:  # noqa: ANN001
+    def __init__(self, root: Path = ROOT, parent=None) -> None:
         super().__init__(parent)
         self.root = root.resolve()
 
-    def requestStarted(self, job: QWebEngineUrlRequestJob) -> None:  # noqa: N802 — Qt-нейминг
+    def requestStarted(self, job: QWebEngineUrlRequestJob) -> None:
         relative = job.requestUrl().path().lstrip("/") or "companion.html"
 
         resource = _QT_RESOURCES.get(relative)

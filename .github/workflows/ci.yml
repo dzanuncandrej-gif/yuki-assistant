@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Линтер и синтаксис
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Установить ruff
+        run: pip install ruff==0.16.8
+      - name: Проверить стиль и ошибки
+        run: ruff check --output-format=github .
+      - name: Проверить, что весь код компилируется
+        run: python -m compileall -q core desktop web scripts tests main.py run.py
+
+  tests:
+    name: Тесты (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      # Полный requirements.txt тянет torch и mediapipe — несколько гигабайт ради
+      # тестов чистой логики. Ставим только то, что действительно импортируется.
+      - name: Зависимости для тестов
+        run: pip install pytest numpy psutil requests pywin32
+      - name: Прогнать тесты
+        run: pytest -q
+
+  config:
+    name: Пример конфигурации
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: config.example.json — корректный JSON без личных данных
+        run: |
+          python - <<'PY'
+          import json, pathlib, sys
+          data = json.loads(pathlib.Path("config.example.json").read_text(encoding="utf-8"))
+          account = data.get("account", {})
+          leaks = [key for key, value in account.items() if value]
+          if leaks or data.get("contacts"):
+              sys.exit(f"в примере остались личные данные: {leaks or 'contacts'}")
+          print("config.example.json чист")
+          PY

@@ -7,8 +7,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -165,7 +165,7 @@ def language_page(store: SettingsStore, actions: Actions) -> QWidget:
 
             if code in speech_language.LANGUAGES:
                 speech_language.set_active(code)
-        except Exception:  # noqa: BLE001 — ассистент мог ещё не запуститься
+        except Exception:
             pass
 
     stt.currentIndexChanged.connect(set_stt_language)

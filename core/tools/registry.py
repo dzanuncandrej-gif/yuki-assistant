@@ -16,8 +16,9 @@ import inspect
 import re
 import threading
 import time
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from typing import Any, Callable, Mapping
+from typing import Any
 
 Handler = Callable[..., str]
 
@@ -288,7 +289,7 @@ def call(name: str, arguments: Mapping[str, Any] | None = None,
 
     try:
         output = target.handler(**prepared)
-    except Exception as err:  # noqa: BLE001 — текст ошибки нужен модели для второй попытки
+    except Exception as err:
         detail = str(err) or err.__class__.__name__
         _log_traceback(name, prepared)
         return Result(False, detail, name, prepared)

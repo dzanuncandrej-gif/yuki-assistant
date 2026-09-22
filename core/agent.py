@@ -14,7 +14,8 @@ import json
 import re
 import threading
 import time
-from typing import Any, Callable, Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping
+from typing import Any
 
 import requests
 
@@ -209,7 +210,7 @@ class Agent:
             active = win.active_window()
             if active is not None and active.title:
                 parts.append(f"Активное окно: «{active.title}» ({active.process}).")
-        except Exception:  # noqa: BLE001 — контекст не обязателен
+        except Exception:
             pass
         return " ".join(parts)
 
@@ -319,7 +320,7 @@ class Agent:
 
         try:
             results = web.search_web(query, count=5)
-        except Exception:  # noqa: BLE001 — нет сети или поисковик молчит
+        except Exception:
             return
         digest = "\n".join(
             f"{index}. {item.title} — {item.snippet}" for index, item in enumerate(results[:5], start=1)

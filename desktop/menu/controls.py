@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from typing import Iterable, Sequence
+from collections.abc import Iterable, Sequence
 
 from PySide6.QtCore import (
     Property,
@@ -57,10 +57,10 @@ class GlassToggle(QWidget):
 
     progress = Property(float, _get_progress, _set_progress)
 
-    def isChecked(self) -> bool:  # noqa: N802 — как у QAbstractButton
+    def isChecked(self) -> bool:
         return self._checked
 
-    def setChecked(self, checked: bool) -> None:  # noqa: N802
+    def setChecked(self, checked: bool) -> None:
         if checked == self._checked:
             return
         self._checked = checked
@@ -72,14 +72,14 @@ class GlassToggle(QWidget):
         self._animation.setEndValue(1.0 if self._checked else 0.0)
         self._animation.start()
 
-    def mousePressEvent(self, event) -> None:  # noqa: ANN001, N802
+    def mousePressEvent(self, event) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
             self._checked = not self._checked
             self._animate()
             self.toggled.emit(self._checked)
         super().mousePressEvent(event)
 
-    def paintEvent(self, event) -> None:  # noqa: ANN001, N802
+    def paintEvent(self, event) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         track = QRectF(1, 4, self.width() - 2, self.height() - 8)
@@ -256,7 +256,7 @@ class Starfield(QWidget):
         self._phase += 0.02
         self.update()
 
-    def paintEvent(self, event) -> None:  # noqa: ANN001, N802
+    def paintEvent(self, event) -> None:
         import math
 
         painter = QPainter(self)

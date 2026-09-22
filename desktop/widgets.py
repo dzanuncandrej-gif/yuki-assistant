@@ -14,7 +14,7 @@ from PySide6.QtCore import (
     QTimer,
     Signal,
 )
-from PySide6.QtGui import QColor, QGuiApplication, QPainter, QPen, QPixmap
+from PySide6.QtGui import QColor, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -30,7 +30,7 @@ from PySide6.QtWidgets import (
 
 from core import i18n
 
-from .theme import AUTHOR, KIND_COLORS, KIND_LABELS, STATE_COLORS, STATE_LABELS
+from .theme import KIND_COLORS, KIND_LABELS, STATE_COLORS, STATE_LABELS
 
 MAX_MESSAGES = 60
 
@@ -121,7 +121,7 @@ class LevelMeter(QWidget):
         self._phase += 0.09
         self.update()
 
-    def paintEvent(self, event) -> None:  # noqa: ANN001, N802 — Qt-нейминг
+    def paintEvent(self, event) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setPen(Qt.PenStyle.NoPen)
@@ -167,14 +167,14 @@ class MetricsLabel(QLabel):
             # каждые две с половиной секунды, вместе с ней менялся желаемый
             # размер страницы — и безрамочное окно от этого уползало вбок
             parts = [f"CPU {cpu:5.1f}%", f"RAM {memory:5.1f}%"]
-        except Exception:  # noqa: BLE001 — телеметрия не критична
+        except Exception:
             parts = []
 
         try:
             from core.automation import volume_get
 
             parts.append(f"VOL {volume_get():3d}%")
-        except Exception:  # noqa: BLE001
+        except Exception:
             pass
 
         self.setText("  ·  ".join(parts))

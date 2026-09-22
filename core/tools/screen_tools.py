@@ -44,7 +44,7 @@ def _read_screen() -> str:
     "Нужен, чтобы выбрать точное имя для click_control.",
     {"filter": param_str("Показать только подходящие по имени, необязательно")},
 )
-def _list_controls(filter: str = "") -> str:  # noqa: A002 — имя видно модели
+def _list_controls(filter: str = "") -> str:
     items = screen.matches(filter, limit=25) if filter.strip() else screen.clickables()
     if not items:
         return "нажимать сейчас не на что"

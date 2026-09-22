@@ -9,8 +9,9 @@ from __future__ import annotations
 import re
 import threading
 import webbrowser
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any, Iterable
+from typing import Any
 from urllib.parse import quote_plus, urlparse
 
 import requests
@@ -111,7 +112,7 @@ def _ddgs_search(query: str, count: int) -> tuple[Result, ...]:
             for row in rows
             if row.get("title")
         )
-    except Exception:  # noqa: BLE001 — сеть или изменившаяся разметка, идём в запасной путь
+    except Exception:
         return ()
 
 

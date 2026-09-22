@@ -1,0 +1,66 @@
+[project]
+name = "yuki-assistant"
+version = "1.0.0"
+description = "Локальный голосовой ИИ-агент для Windows: распознавание речи, инструменты через Ollama, синтез голоса, экранный компаньон"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { file = "LICENSE" }
+keywords = ["voice-assistant", "ollama", "whisper", "local-llm", "windows", "ai-agent"]
+classifiers = [
+    "Environment :: Win32 (MS Windows)",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: Russian",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+]
+
+[project.urls]
+Repository = "https://github.com/dzanuncandrej-gif/yuki-assistant"
+Issues = "https://github.com/dzanuncandrej-gif/yuki-assistant/issues"
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+# сторонние сборки и скачанные модели не наши — их не проверяем
+exclude = [".venv", "models", "ui3d/vendor", ".cache", ".backup", ".tools", "data"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "RUF"]
+ignore = [
+    "E501",    # длину строк держим сами, но без падения сборки
+    "RUF001",  # кириллица рядом с латиницей в строках — это язык интерфейса, не опечатка
+    "RUF002",
+    "RUF003",
+    "B008",    # вызов в значении по умолчанию — осознанный приём в Qt-обвязке
+    "SIM105",  # contextlib.suppress читается хуже голого try/except в горячем коде
+    # Дальше — придирки к стилю, а не к поведению. Линтер здесь стоит ради
+    # настоящих ошибок (неиспользуемое имя, тень переменной цикла, повтор ключа
+    # словаря), а не ради переписывания рабочего кода под вкус правила.
+    "SIM102",  # вложенные if часто читаются лучше склеенного условия
+    "SIM103",
+    "SIM108",  # тернарник вместо if/else не всегда понятнее
+    "B905",    # zip(strict=) — в этих местах длины заведомо равны
+    "B007",
+    "C402",
+    "C416",
+    "RUF005",  # распаковка вместо конкатенации списков
+    "RUF006",
+    "RUF007",
+    "RUF012",
+    "RUF034",
+    "RUF046",
+    "RUF059",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E402"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-q --strict-markers"
+markers = [
+    "windows: тест требует настоящей Windows с окнами и вводом",
+]

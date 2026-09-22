@@ -292,7 +292,7 @@ def _config_language() -> str:
 
     try:
         return str(config.load().get("ui", {}).get("language", DEFAULT))
-    except Exception:  # noqa: BLE001 — сломанный конфиг не должен ронять интерфейс
+    except Exception:
         return DEFAULT
 
 

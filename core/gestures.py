@@ -17,9 +17,10 @@ from __future__ import annotations
 
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from . import config
 
@@ -153,7 +154,7 @@ class HandReader:
         if detector is not None:
             try:
                 detector.close()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
 
     # ---------------------------------------------------------------- кадр
@@ -228,5 +229,5 @@ class HandReader:
         if self.on_event is not None:
             try:
                 self.on_event(event)
-            except Exception:  # noqa: BLE001 — обработчик не должен ронять камеру
+            except Exception:
                 pass

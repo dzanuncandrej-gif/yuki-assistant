@@ -22,8 +22,7 @@ import re
 import threading
 import time
 import unicodedata
-from dataclasses import dataclass, field
-from typing import Sequence
+from dataclasses import dataclass
 
 from . import apps, automation, screen
 from . import windows as win
@@ -285,7 +284,7 @@ def cancel() -> str:
 # ---------------------------------------------------------------- шаги отправки
 
 
-def _window(service: Service, timeout_s: float = 25.0):  # noqa: ANN201
+def _window(service: Service, timeout_s: float = 25.0):
     """Окно мессенджера: найти среди открытых, иначе запустить и дождаться."""
     try:
         return win.find(service.window_hint)

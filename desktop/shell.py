@@ -7,7 +7,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 from PySide6.QtCore import QObject, QTimer
 
@@ -126,7 +127,7 @@ class Shell(QObject):
             },
         )
 
-    def _dictate_message(self, deliver) -> None:  # noqa: ANN001 — Callable[[str], None]
+    def _dictate_message(self, deliver) -> None:
         """Продиктовать текст сообщения голосом.
 
         Юки спрашивает вслух и слушает следующую фразу. Реплика не уходит в агента:

@@ -39,7 +39,7 @@ def _normalize(url: str) -> str:
     return f"https://{clean}"
 
 
-def browser_window(timeout_s: float = 12.0):  # noqa: ANN201 — WindowInfo
+def browser_window(timeout_s: float = 12.0):
     """Ждёт появления окна браузера и возвращает его."""
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:

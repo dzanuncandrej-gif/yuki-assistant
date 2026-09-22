@@ -209,7 +209,7 @@ def by_model(question: str, url: str, model: str) -> Intent:
             timeout=20,
         ).json()
         raw = str(answer.get("message", {}).get("content", "")).strip().lower()
-    except Exception:  # noqa: BLE001 — маршрутизация не обязана удаться
+    except Exception:
         raw = ""
 
     for choice in CHOICES:

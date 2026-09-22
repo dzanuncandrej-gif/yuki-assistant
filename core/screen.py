@@ -22,8 +22,9 @@ import io
 import re
 import threading
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, Iterable, Sequence
+from typing import Any
 
 _local = threading.local()
 
@@ -86,7 +87,7 @@ class Shot:
         return buffer.getvalue()
 
 
-def _grabber():  # noqa: ANN202
+def _grabber():
     """Свой захватчик на поток: mss нельзя делить между потоками."""
     grabber = getattr(_local, "mss", None)
     if grabber is None:
@@ -182,7 +183,7 @@ _ROLES: dict[int, str] = {
 }
 
 
-def _uia():  # noqa: ANN202
+def _uia():
     """Клиент UI Automation для текущего потока.
 
     COM живёт по потокам: объект, созданный в одном, в другом молча не работает.
@@ -206,14 +207,14 @@ def _uia():  # noqa: ANN202
         client = comtypes.client.CreateObject(
             schema.CUIAutomation, interface=schema.IUIAutomation
         )
-    except Exception as err:  # noqa: BLE001 — без дерева работает только модель зрения
+    except Exception as err:
         raise ScreenError(f"дерево интерфейса недоступно: {str(err)[:120]}") from err
     _local.uia = client
     _local.uia_schema = schema
     return client
 
 
-def _schema():  # noqa: ANN202
+def _schema():
     _uia()
     return _local.uia_schema
 
@@ -278,15 +279,15 @@ _WANTED_TYPES: tuple[int, ...] = (
 )
 
 
-def _cached(node, prop: str, default: Any = None) -> Any:  # noqa: ANN001
+def _cached(node, prop: str, default: Any = None) -> Any:
     """Свойство из кэша. Не всякий элемент отдаёт каждое — молча берём умолчание."""
     try:
         return getattr(node, prop)
-    except Exception:  # noqa: BLE001 — провайдер не поддерживает это свойство
+    except Exception:
         return default
 
 
-def _condition(client, schema):  # noqa: ANN001, ANN202
+def _condition(client, schema):
     """Условие отбора: нужные роли и только то, что сейчас видно на экране."""
     wanted = None
     for kind in _WANTED_TYPES:
@@ -296,7 +297,7 @@ def _condition(client, schema):  # noqa: ANN001, ANN202
     return client.CreateAndCondition(wanted, onscreen)
 
 
-def _walk(client, schema, root, limit: int) -> tuple[Element, ...]:  # noqa: ANN001
+def _walk(client, schema, root, limit: int) -> tuple[Element, ...]:
     """Видимые органы управления одним запросом с кэшем свойств.
 
     Именно `FindAllBuildCache` делает чтение быстрым: без него каждое обращение к
@@ -341,7 +342,7 @@ def _walk(client, schema, root, limit: int) -> tuple[Element, ...]:  # noqa: ANN
                     focused=bool(_cached(node, "CachedHasKeyboardFocus", False)),
                 )
             )
-        except Exception:  # noqa: BLE001 — элемент исчез, пока мы читали дерево
+        except Exception:
             continue
     return tuple(items)
 
@@ -366,7 +367,6 @@ _POPUP_CLASSES = frozenset({
 def popups() -> tuple[int, ...]:
     """Указатели видимых всплывающих окон: меню, списки, диалоги."""
     try:
-        import win32con
         import win32gui
     except ImportError:
         return ()
@@ -382,13 +382,13 @@ def popups() -> tuple[int, ...]:
                 left, top, right, bottom = win32gui.GetWindowRect(hwnd)
                 if right - left > 8 and bottom - top > 8 and left > -20000:
                     found.append(hwnd)
-        except Exception:  # noqa: BLE001 — окно закрылось прямо сейчас
+        except Exception:
             pass
         return True
 
     try:
         win32gui.EnumWindows(visit, None)
-    except Exception:  # noqa: BLE001
+    except Exception:
         return ()
     return tuple(found)
 
@@ -424,7 +424,7 @@ def elements(hwnd: int | None = None, fresh: bool = False) -> tuple[Element, ...
     schema = _schema()
     try:
         root = client.ElementFromHandle(hwnd)
-    except Exception as err:  # noqa: BLE001
+    except Exception as err:
         raise ScreenError(f"окно недоступно для чтения: {str(err)[:100]}") from err
     items = _walk(client, schema, root, MAX_ELEMENTS)
 
@@ -447,7 +447,7 @@ def windows_list() -> tuple[Element, ...]:
     for info in win.enumerate_windows():
         try:
             left, top, right, bottom = win.rect(info)
-        except Exception:  # noqa: BLE001 — окно закрылось, пока мы его читали
+        except Exception:
             continue
         if right - left <= 0 or bottom - top <= 0:
             continue
@@ -737,7 +737,7 @@ def _dialog_of(hwnd: int, title: str, items: Sequence[Element],
         import win32gui
 
         window_class = win32gui.GetClassName(hwnd)
-    except Exception:  # noqa: BLE001
+    except Exception:
         window_class = ""
 
     named = [item for item in controls if item.name]
@@ -785,7 +785,7 @@ def look(question: str, url: str, region: tuple[int, int, int, int] | None = Non
                 left, top, right, bottom = win.rect(win.active_window())  # type: ignore[arg-type]
                 if right - left > 200 and bottom - top > 150:
                     region = (left, top, right, bottom)
-            except Exception:  # noqa: BLE001 — не вышло, снимем весь экран
+            except Exception:
                 region = None
 
     shot = capture(region)
@@ -803,7 +803,7 @@ def look(question: str, url: str, region: tuple[int, int, int, int] | None = Non
     if model is None:
         raise ScreenError("модель зрения не установлена: ollama pull qwen2.5vl:3b")
     answer = vision.describe(
-        shot.encode(), url, model, vision._prompt_for(model, question),  # noqa: SLF001
+        shot.encode(), url, model, vision._prompt_for(model, question),
         timeout_s=timeout_s, num_predict=200, keep_alive=vision.LIVE_KEEP_ALIVE,
     )
     answer = vision.to_russian(answer, url)
@@ -839,11 +839,11 @@ def _click_scale() -> float:
         import ctypes
 
         logical = ctypes.windll.user32.GetSystemMetrics(0)
-    except Exception:  # noqa: BLE001
+    except Exception:
         return 1.0
     try:
         physical = _grabber().monitors[1]["width"]
-    except Exception:  # noqa: BLE001
+    except Exception:
         return 1.0
     if not logical or not physical:
         return 1.0
@@ -891,7 +891,7 @@ def focused_text() -> str | None:
         client = _uia()
         schema = _schema()
         node = client.GetFocusedElement()
-    except Exception:  # noqa: BLE001 — фокуса нет или дерево недоступно
+    except Exception:
         return None
     for pattern_id, attribute in (
         (schema.UIA_ValuePatternId, "CurrentValue"),
@@ -907,7 +907,7 @@ def focused_text() -> str | None:
                 return str(value or "")
             document = pattern.QueryInterface(schema.IUIAutomationTextPattern)
             return str(document.DocumentRange.GetText(4096) or "")
-        except Exception:  # noqa: BLE001 — этот шаблон не поддерживается
+        except Exception:
             continue
     return None
 

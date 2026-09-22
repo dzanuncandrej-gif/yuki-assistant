@@ -14,9 +14,11 @@ from __future__ import annotations
 import datetime as dt
 import re
 import time
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any, Callable, Mapping, Pattern
+from re import Pattern
+from typing import Any
 
 from . import apps, automation, files, language, media, messengers, outbox, phrases, vision, voices, web
 from . import text as text_utils
@@ -72,10 +74,7 @@ _KEY_NAMES = {
     "стрелка влево": "left", "стрелка вправо": "right",
 }
 
-_MONTHS = (
-    "января февраля марта апреля мая июня июля "
-    "августа сентября октября ноября декабря"
-).split()
+_MONTHS = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"]
 
 
 def configure(settings: Mapping[str, Any] | None) -> None:
@@ -431,7 +430,7 @@ def _news(_: re.Match[str]) -> str:
     try:
         stories = web.news("главное", count=4)
         digest = web.summarize_results(stories, limit=4)
-    except Exception:  # noqa: BLE001 — лента открыта, а заголовки не обязательны
+    except Exception:
         digest = ""
     return f"Открыла новости. {digest}".strip() if digest else "Открыла новости."
 
@@ -1072,7 +1071,7 @@ def _run_single(phrase: str) -> str | None:
                 continue
             except FAILURES as err:
                 return f"Не смог: {err}"
-            except Exception as err:  # noqa: BLE001 — команда не должна ронять цикл
+            except Exception as err:
                 return f"Ошибка при выполнении «{intent.name}»: {err}"
     return None
 
@@ -1161,7 +1160,7 @@ def _send_composite(request: phrases.SendRequest) -> str:
         outbox.deliver(draft, request.message)
     except FAILURES as err:
         return f"Не смогла отправить: {err}"
-    except Exception as err:  # noqa: BLE001 — команда не должна ронять цикл
+    except Exception as err:
         return f"Не смогла отправить: {err}"
     return f"Отправила {draft.found}: «{request.message}»."
 

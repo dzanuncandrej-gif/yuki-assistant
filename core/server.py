@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Mapping
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, status
 from fastapi.responses import FileResponse
@@ -21,7 +22,7 @@ def create_app(cfg: Mapping[str, Any]) -> FastAPI:
     assistant = Assistant(cfg)
 
     @asynccontextmanager
-    async def lifespan(app: FastAPI):  # noqa: ANN202
+    async def lifespan(app: FastAPI):
         bus.bus.attach_loop(asyncio.get_running_loop())
         assistant.start()
         try:

@@ -9,11 +9,11 @@ from __future__ import annotations
 
 import math
 import random
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 from PySide6.QtCore import (
     QEasingCurve,
-    QPoint,
     QPropertyAnimation,
     QRectF,
     Qt,
@@ -106,7 +106,7 @@ class Stage(QWidget):
         )
         self.update()
 
-    def paintEvent(self, event) -> None:  # noqa: ANN001, N802 — Qt-нейминг
+    def paintEvent(self, event) -> None:
         if self._minimal:
             return
         painter = QPainter(self)
@@ -223,7 +223,7 @@ class SpeechBubble(QWidget):
         height = min(184, rect.height() + 36)
         self.setGeometry(17, 10, width, height)
 
-    def paintEvent(self, event) -> None:  # noqa: ANN001, N802
+    def paintEvent(self, event) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         body = QRectF(0, 0, self.width(), self.height() - 11)
@@ -292,7 +292,7 @@ class StatusCapsule(QWidget):
         self._phase += 0.12
         self.update()
 
-    def paintEvent(self, event) -> None:  # noqa: ANN001, N802
+    def paintEvent(self, event) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         body = QRectF(0, 0, self.width(), self.height())
@@ -617,21 +617,21 @@ class CompanionPanel(QWidget):
         self.hide()
         self.hidden.emit()
 
-    def enterEvent(self, event) -> None:  # noqa: ANN001, N802 — Qt-нейминг
+    def enterEvent(self, event) -> None:
         self._show_dock(True)
         super().enterEvent(event)
 
-    def leaveEvent(self, event) -> None:  # noqa: ANN001, N802
+    def leaveEvent(self, event) -> None:
         self._dock_timer.start(1200)
         super().leaveEvent(event)
 
-    def mousePressEvent(self, event) -> None:  # noqa: ANN001, N802
+    def mousePressEvent(self, event) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
             self._start_move()
             return
         super().mousePressEvent(event)
 
-    def contextMenuEvent(self, event) -> None:  # noqa: ANN001, N802
+    def contextMenuEvent(self, event) -> None:
         menu = QMenu(self)
         menu.addAction(QAction("Настройки Юки", menu, triggered=self.menu_requested.emit))
         menu.addAction(QAction("Видеосвязь", menu, triggered=self.call_requested.emit))
@@ -646,7 +646,7 @@ class CompanionPanel(QWidget):
         menu.addAction(QAction("Скрыть панель", menu, triggered=self._on_close))
         menu.exec(event.globalPos())
 
-    def resizeEvent(self, event) -> None:  # noqa: ANN001, N802
+    def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         self.stage.setGeometry(self.rect())
         self.stage.lower()

@@ -1,0 +1,51 @@
+name: Баг
+description: Юки делает не то или падает
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Перед отправкой: загляните в `data\errors.log` — если инструмент упал,
+        там лежит полный стек ошибки. Он объясняет причину лучше любого описания.
+  - type: textarea
+    id: what
+    attributes:
+      label: Что произошло
+      placeholder: Сказал «напиши папе привет» — ответила «не смогла отправить».
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Что ожидалось
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Как повторить
+      placeholder: |
+        1. Сказать «…»
+        2. …
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Стек ошибки из data\errors.log
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: Версия или коммит
+      placeholder: git rev-parse --short HEAD
+  - type: input
+    id: model
+    attributes:
+      label: Модель в Ollama
+      placeholder: qwen3:8b
+  - type: input
+    id: machine
+    attributes:
+      label: Windows, процессор, видеокарта
+      placeholder: Windows 11, i5-14400F, RTX 5060 8 ГБ

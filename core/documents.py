@@ -12,9 +12,9 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator
 
 # Размер куска. Слишком мелкий теряет контекст («ставка 12%» без указания, чего
 # именно), слишком крупный размывает поиск и раздувает запрос к модели.
@@ -68,7 +68,7 @@ def _read_pdf(path: Path) -> Iterator[tuple[str, str]]:
     for number, page in enumerate(reader.pages, start=1):
         try:
             text = page.extract_text() or ""
-        except Exception:  # noqa: BLE001 — одна битая страница не рушит документ
+        except Exception:
             text = ""
         if not text.strip():
             empty += 1

@@ -9,7 +9,7 @@
 from __future__ import annotations
 
 import threading
-from typing import Callable
+from collections.abc import Callable
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLineEdit, QPushButton, QWidget
@@ -34,7 +34,7 @@ def launch(name: str) -> None:
         try:
             apps.launch(name)
             bus.bus.log("system", f"Запускаю {name}.")
-        except Exception as err:  # noqa: BLE001 — не роняем интерфейс из-за ярлыка
+        except Exception as err:
             bus.bus.log("error", f"Не удалось открыть {name}: {err}")
 
     threading.Thread(target=run, name=f"quick-{name}", daemon=True).start()

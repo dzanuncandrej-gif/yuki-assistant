@@ -63,7 +63,7 @@ class Skin:
     aura: QColor = field(default_factory=lambda: _c("#58b6ff"))
     line: QColor = field(default_factory=lambda: _c("#3a3226"))
 
-    def with_aura(self, color: QColor) -> "Skin":
+    def with_aura(self, color: QColor) -> Skin:
         """Свечение меняется вместе с состоянием — остальная внешность нет."""
         return replace(self, aura=QColor(color))
 

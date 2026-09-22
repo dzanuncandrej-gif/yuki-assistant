@@ -19,8 +19,9 @@ from __future__ import annotations
 import json
 import threading
 import time
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 from . import config
 
@@ -253,7 +254,7 @@ class Outcome:
                 f"{len(self.done) + len(self.failed)}. Не вышло: {'; '.join(self.failed[:2])}")
 
 
-def run(name: str, on_step=None) -> Outcome:  # noqa: ANN001 — Callable[[str, str], None]
+def run(name: str, on_step=None) -> Outcome:
     """Выполняет сценарий шаг за шагом.
 
     Упавший шаг записывается и не мешает остальным: половина сценария лучше, чем

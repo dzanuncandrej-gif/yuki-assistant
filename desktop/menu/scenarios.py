@@ -31,7 +31,7 @@ class _Runner(QObject):
     def run(self) -> None:
         try:
             self.done.emit(workflows.run(self._name).report())
-        except Exception as err:  # noqa: BLE001 — показываем человеку как есть
+        except Exception as err:
             self.done.emit(f"Не выполнилось: {err}")
 
 

@@ -26,7 +26,7 @@ def _volume_set(level: int) -> str:
 
     try:
         previous = automation.volume_get()
-    except Exception:  # noqa: BLE001 — прежнее значение не прочиталось, откат не предложим
+    except Exception:
         previous = None
     value = automation.volume_set(level)
     if previous is not None:
@@ -83,7 +83,7 @@ def _brightness(level: int) -> str:
 
     try:
         previous = automation.brightness_get()
-    except Exception:  # noqa: BLE001
+    except Exception:
         previous = None
     value = automation.brightness_set(level)
     if previous is not None:

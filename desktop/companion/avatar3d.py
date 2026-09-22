@@ -13,7 +13,8 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 from PySide6.QtCore import QObject, Qt, QTimer, Signal, Slot
 from PySide6.QtGui import QColor, QCursor
@@ -50,19 +51,19 @@ class Link(QObject):
     failed = Signal(str)
 
     @Slot("QVariant")
-    def onReady(self, info: Any) -> None:  # noqa: N802 — имя вызывается из JS
+    def onReady(self, info: Any) -> None:
         self.ready.emit(dict(info) if isinstance(info, dict) else {})
 
     @Slot()
-    def onClick(self) -> None:  # noqa: N802
+    def onClick(self) -> None:
         self.clicked.emit()
 
     @Slot()
-    def onDragStart(self) -> None:  # noqa: N802
+    def onDragStart(self) -> None:
         self.dragStarted.emit()
 
     @Slot(str)
-    def onError(self, text: str) -> None:  # noqa: N802
+    def onError(self, text: str) -> None:
         self.failed.emit(text)
 
 
@@ -114,7 +115,7 @@ class Avatar3D(QWidget):
         items = webassets.characters()
         return str(items[0]["id"]) if items else None
 
-    def _build_view(self) -> "QWebEngineView":
+    def _build_view(self) -> QWebEngineView:
         view = QWebEngineView(self)
         view.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         view.setStyleSheet("background: transparent;")

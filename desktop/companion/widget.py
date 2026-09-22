@@ -108,7 +108,7 @@ class CharacterWidget(QWidget):
             (cursor.y() - center.y()) / (span * 1.6),
         )
 
-    def paintEvent(self, event) -> None:  # noqa: ANN001, N802 — Qt-нейминг
+    def paintEvent(self, event) -> None:
         painter = QPainter(self)
         area = QRectF(self.rect())
         if self._use_photo:
@@ -122,13 +122,13 @@ class CharacterWidget(QWidget):
 
         return monotonic()
 
-    def mousePressEvent(self, event) -> None:  # noqa: ANN001, N802
+    def mousePressEvent(self, event) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
             self.animator.play("happy", 1.8)
             self.clicked.emit()
         super().mousePressEvent(event)
 
-    def sizeHint(self):  # noqa: ANN201, N802
+    def sizeHint(self):
         from PySide6.QtCore import QSize
 
         return QSize(int(CANVAS_W / 3), int(CANVAS_H / 3))

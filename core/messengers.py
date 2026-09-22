@@ -133,7 +133,7 @@ def _matches_any(title: str, queries: tuple[str, ...]) -> bool:
     return any(_title_matches(title, query) for query in queries)
 
 
-def _window(messenger: Messenger, launch: bool = True, timeout_s: float = 25.0):  # noqa: ANN201
+def _window(messenger: Messenger, launch: bool = True, timeout_s: float = 25.0):
     """Окно мессенджера: ищем среди открытых, при необходимости запускаем и ждём."""
     try:
         return win.find(messenger.window_hint)
@@ -155,7 +155,7 @@ def _window(messenger: Messenger, launch: bool = True, timeout_s: float = 25.0):
     raise MessengerError(f"{messenger.key} не открылся за {timeout_s:.0f} секунд")
 
 
-def _focus_search(messenger: Messenger, window) -> None:  # noqa: ANN001
+def _focus_search(messenger: Messenger, window) -> None:
     """Ставит курсор в строку глобального поиска: сначала кликом, иначе горячей клавишей."""
     automation.press_key("esc")
     time.sleep(0.2)
@@ -173,7 +173,7 @@ def _focus_search(messenger: Messenger, window) -> None:  # noqa: ANN001
     time.sleep(0.6)
 
 
-def _search_and_open(messenger: Messenger, target: str, window, second_try: bool = False) -> str:  # noqa: ANN001
+def _search_and_open(messenger: Messenger, target: str, window, second_try: bool = False) -> str:
     """Глобальный поиск по имени и открытие первого результата."""
     _focus_search(messenger, window)
     automation.type_text(target)
@@ -258,7 +258,7 @@ def _input_is_empty() -> bool | None:
 
     try:
         text = screen.focused_text()
-    except Exception:  # noqa: BLE001 — дерево интерфейса недоступно
+    except Exception:
         return None
     if text is None:
         return None

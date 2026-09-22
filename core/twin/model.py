@@ -14,8 +14,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
-from typing import Mapping
 
 # Рабочий день и месяц. Вынесено в константы, потому что эти два числа
 # превращают минуты симуляции в рубли отчёта и встречаются в расчётах повсюду.
@@ -126,7 +126,7 @@ class Plant:
         """
         return self.demand_at(station_id) / max(self.station(station_id).capacity_day, 0.001)
 
-    def with_scenario(self, scenario: "Scenario") -> "Plant":
+    def with_scenario(self, scenario: Scenario) -> Plant:
         """Новое предприятие с применённым сценарием. Исходное не меняется."""
         changed = []
         for item in self.stations:
@@ -161,7 +161,7 @@ class Scenario:
     def empty(self) -> bool:
         return not (self.staff or self.speed or self.defect) and self.demand == 1.0
 
-    def merged(self, other: "Scenario") -> "Scenario":
+    def merged(self, other: Scenario) -> Scenario:
         """Сумма двух сценариев. Нужна перебору наборов мер."""
         staff = dict(self.staff)
         for key, value in other.staff.items():

@@ -53,7 +53,7 @@ def load() -> Any | None:
             model.eval()
             torch.set_grad_enabled(False)
             _model = model
-        except Exception:  # noqa: BLE001 — без нейросети остаётся энергетический порог
+        except Exception:
             _model = None
         return _model
 

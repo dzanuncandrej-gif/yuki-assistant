@@ -262,7 +262,7 @@ def make_folder(target: Path) -> Path:
 def open_path(path: Path) -> str:
     if not path.exists():
         raise FileError(f"путь не существует: {path}")
-    os.startfile(str(path))  # noqa: S606 — путь пришёл из поиска или от пользователя
+    os.startfile(str(path))
     return path.name
 
 

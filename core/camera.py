@@ -183,7 +183,7 @@ class Camera:
         if capture is not None:
             try:
                 capture.release()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
 
     # ---------------------------------------------------------------- модели
@@ -243,7 +243,6 @@ class Camera:
     # ---------------------------------------------------------------- основной цикл
 
     def _loop(self) -> None:
-        import cv2
 
         period = 1.0 / self.target_fps
         failures = 0
@@ -260,7 +259,7 @@ class Camera:
                 if not ok or frame is None:
                     raise CameraError("кадр не получен")
                 failures = 0
-            except Exception as err:  # noqa: BLE001 — камеру мог занять другой процесс
+            except Exception as err:
                 failures += 1
                 self.vision.error = str(err)[:120]
                 self.vision.healthy = failures < 3
@@ -281,7 +280,7 @@ class Camera:
             if reader is not None and counter % self.hands_every == 0:
                 try:
                     self.vision.gesture = reader.process(frame)
-                except Exception as err:  # noqa: BLE001 — жесты не должны ронять камеру
+                except Exception as err:
                     self.vision.error = f"жесты: {str(err)[:80]}"
                     self._hands = None
 

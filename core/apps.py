@@ -130,7 +130,7 @@ def warm_index() -> None:
     for build in (shortcut_index, steam_games, uwp_apps, app_paths):
         try:
             build()
-        except Exception:  # noqa: BLE001 — один недоступный источник не мешает остальным
+        except Exception:
             continue
 
 
@@ -346,15 +346,15 @@ def launch(query: str) -> str:
     if target.kind == "builtin":
         subprocess.Popen(list(target.argv), shell=False)
     elif target.kind == "steam":
-        os.startfile(f"steam://rungameid/{target.target}")  # noqa: S606
+        os.startfile(f"steam://rungameid/{target.target}")
     elif target.kind == "uwp":
         subprocess.Popen(["explorer.exe", f"shell:AppsFolder\\{target.target}"], shell=False)
     else:
-        os.startfile(target.target)  # noqa: S606 — путь получен из системного индекса
+        os.startfile(target.target)
     return target.name
 
 
-def wait_for_window(name: str, timeout_s: float = 10.0):  # noqa: ANN201 — WindowInfo | None
+def wait_for_window(name: str, timeout_s: float = 10.0):
     """Ждёт появления окна запущенного приложения, чтобы можно было сразу печатать в него."""
     from . import windows as win
 

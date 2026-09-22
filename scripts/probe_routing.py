@@ -15,15 +15,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core import apps, automation, browser, commands, files, media, messengers, outbox, web  # noqa: E402
-from core import text as text_utils  # noqa: E402
-from core import windows as win  # noqa: E402
+from core import apps, automation, browser, commands, files, media, messengers, outbox, web
+from core import text as text_utils
+from core import windows as win
 
 CALLS: list[str] = []
 
 
-def _record(label: str, result: object = None):  # noqa: ANN202
-    def fake(*args, **kwargs):  # noqa: ANN002, ANN003, ANN202
+def _record(label: str, result: object = None):
+    def fake(*args, **kwargs):
         shown = ", ".join([repr(a) for a in args] + [f"{k}={v!r}" for k, v in kwargs.items()])
         CALLS.append(f"{label}({shown})")
         return result(*args, **kwargs) if callable(result) else result
@@ -178,7 +178,7 @@ def main() -> int:
                 f"ЧАСТЬ, агенту: «{outcome.remainder}»" if outcome.answer else "АГЕНТ")
             if outcome.failure:
                 answer = f"{answer or ''} | неудача: {outcome.failure}"
-        except Exception as err:  # noqa: BLE001
+        except Exception as err:
             answer, route = f"ИСКЛЮЧЕНИЕ {err!r}", "ОШИБКА"
         commands._clear_pending()  # каждая фраза проверяется с чистого листа
         from core import questions

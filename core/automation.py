@@ -11,9 +11,9 @@ import re
 import subprocess
 import time
 import webbrowser
+from collections.abc import Sequence
 from ctypes import wintypes
 from pathlib import Path
-from typing import Sequence
 from urllib.parse import quote_plus
 
 import psutil
@@ -210,7 +210,7 @@ def _target_hwnd() -> int:
         finally:
             if attached:
                 user32.AttachThreadInput(own_thread, target_thread, False)
-    except Exception:  # noqa: BLE001 — не удалось подключиться к чужому потоку
+    except Exception:
         focused = 0
     return int(focused or foreground)
 
@@ -288,7 +288,7 @@ def _screen_changed() -> None:
         from . import screen
 
         screen.invalidate()
-    except Exception:  # noqa: BLE001 — без глаз ввод всё равно должен работать
+    except Exception:
         pass
 
 
@@ -375,7 +375,7 @@ def get_clipboard() -> str | None:
         import pyperclip
 
         return pyperclip.paste()
-    except Exception:  # noqa: BLE001 — на некоторых системах pyperclip не находит бэкенд
+    except Exception:
         pass
     try:
         import win32clipboard
@@ -387,7 +387,7 @@ def get_clipboard() -> str | None:
             return str(win32clipboard.GetClipboardData(win32clipboard.CF_UNICODETEXT))
         finally:
             win32clipboard.CloseClipboard()
-    except Exception:  # noqa: BLE001 — буфер может быть занят или пуст
+    except Exception:
         return None
 
 
@@ -397,7 +397,7 @@ def set_clipboard(text: str) -> None:
 
         pyperclip.copy(text)
         return
-    except Exception:  # noqa: BLE001 — падаем на нативный WinAPI ниже
+    except Exception:
         pass
     try:
         import win32clipboard
@@ -412,7 +412,7 @@ def set_clipboard(text: str) -> None:
             finally:
                 win32clipboard.CloseClipboard()
             return
-        except Exception:  # noqa: BLE001 — другой процесс держит буфер, пробуем ещё
+        except Exception:
             time.sleep(0.05 * (attempt + 1))
     raise ActionError("буфер обмена занят другим приложением")
 
@@ -443,7 +443,7 @@ def _audio_endpoint():
 def volume_get() -> int:
     try:
         return int(round(_audio_endpoint().GetMasterVolumeLevelScalar() * 100))
-    except Exception as err:  # noqa: BLE001 — нет pycaw или звукового устройства
+    except Exception as err:
         raise ActionError("не удалось прочитать громкость") from err
 
 
@@ -451,7 +451,7 @@ def volume_set(percent: int) -> int:
     value = max(0, min(100, int(percent)))
     try:
         _audio_endpoint().SetMasterVolumeLevelScalar(value / 100.0, None)
-    except Exception:  # noqa: BLE001 — откатываемся на медиа-клавиши
+    except Exception:
         _tap("volume_up" if value > 50 else "volume_down", 10)
     return value
 
@@ -470,7 +470,7 @@ def mute_toggle() -> str:
         muted = not bool(endpoint.GetMute())
         endpoint.SetMute(muted, None)
         return "выключен" if muted else "включён"
-    except Exception:  # noqa: BLE001
+    except Exception:
         _tap("mute")
         return "переключен"
 
@@ -490,7 +490,7 @@ def brightness_get() -> int:
         values = sbc.get_brightness()
         if values:
             return int(values[0])
-    except Exception:  # noqa: BLE001 — монитор может не поддерживать DDC/CI
+    except Exception:
         pass
     raise ActionError("монитор не сообщает яркость")
 
@@ -501,7 +501,7 @@ def brightness_set(percent: int) -> int:
         import screen_brightness_control as sbc
 
         sbc.set_brightness(value)
-    except Exception as err:  # noqa: BLE001
+    except Exception as err:
         raise ActionError("монитор не поддерживает программную яркость") from err
     return value
 

@@ -154,7 +154,8 @@ def build(source: Path = SOURCE, target: Path = TARGET) -> dict[str, Any]:
     body = figure.copy()
     box = _scale(HEAD_BOX)
     hole = Image.new("L", body.size, 255)
-    from PIL import ImageDraw, ImageFilter as _Filter
+    from PIL import ImageDraw
+    from PIL import ImageFilter as _Filter
 
     width = box[2] - box[0]
     height = box[3] - box[1]

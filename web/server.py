@@ -19,13 +19,13 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-from contextlib import asynccontextmanager
 import json
 import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -165,18 +165,18 @@ def create_app(character: str = "default") -> FastAPI:
             card = load_card(character)
             try:
                 await asyncio.to_thread(_warm_models, url, model, card)
-            except Exception:  # noqa: BLE001 — прогрев не обязан удаться
+            except Exception:
                 pass
             for question in card.questions[:6]:
                 try:
                     await asyncio.to_thread(_precompute, card, question, url, model, heavy, settings)
-                except Exception:  # noqa: BLE001 — одна подсказка не удалась, идём дальше
+                except Exception:
                     continue
 
         asyncio.create_task(prepare())
 
     @asynccontextmanager
-    async def lifespan(_app: FastAPI):  # noqa: ANN202
+    async def lifespan(_app: FastAPI):
         await warm()
         yield
 
@@ -204,7 +204,7 @@ def create_app(character: str = "default") -> FastAPI:
         card = load_card(name)
         try:
             data = await asyncio.to_thread(_render_voice, clean, card.voice, settings)
-        except Exception as err:  # noqa: BLE001 — без голоса страница работает дальше
+        except Exception as err:
             raise HTTPException(503, f"синтез недоступен: {str(err)[:120]}") from err
         return Response(content=data, media_type="audio/wav")
 
@@ -260,11 +260,14 @@ def create_app(character: str = "default") -> FastAPI:
                     loop = asyncio.get_running_loop()
                     box: asyncio.Queue = asyncio.Queue()
 
-                    def pump() -> None:
+                    # переменные цикла связываются значениями по умолчанию: иначе
+                    # поток читал бы те stream/box, что достанутся ему к моменту
+                    # запуска, а не те, ради которых он создан
+                    def pump(stream=stream, loop=loop, box=box) -> None:
                         try:
                             for piece in stream:
                                 loop.call_soon_threadsafe(box.put_nowait, ("text", piece))
-                        except Exception as err:  # noqa: BLE001
+                        except Exception as err:
                             loop.call_soon_threadsafe(box.put_nowait, ("error", err))
                         finally:
                             loop.call_soon_threadsafe(box.put_nowait, ("end", None))

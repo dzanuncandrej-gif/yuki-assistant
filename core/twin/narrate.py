@@ -15,7 +15,7 @@
 from __future__ import annotations
 
 import re
-from typing import Iterator
+from collections.abc import Iterator
 
 import requests
 
@@ -107,7 +107,7 @@ def narrate(reading: Reading, question: str, url: str, model: str) -> Iterator[s
             stream=True, timeout=(5, 90),
         )
         response.raise_for_status()
-    except Exception:  # noqa: BLE001 — молчать нельзя, говорим сами
+    except Exception:
         yield compose(reading)
         return
 
@@ -131,7 +131,7 @@ def narrate(reading: Reading, question: str, url: str, model: str) -> Iterator[s
         for sentence in _sentences(pieces()):
             spoken = True
             yield sentence
-    except Exception:  # noqa: BLE001 — обрыв посреди речи
+    except Exception:
         pass
     finally:
         response.close()

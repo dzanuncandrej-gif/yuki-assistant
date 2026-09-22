@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 from . import (  # noqa: F401
     app_tools,
@@ -36,8 +37,18 @@ from .registry import (
 from .routing import select
 
 __all__ = [
-    "Result", "Tool", "call", "catalog", "configure", "get", "names", "select",
-    "pending", "resolve_pending", "set_request", "specs",
+    "Result",
+    "Tool",
+    "call",
+    "catalog",
+    "configure",
+    "get",
+    "names",
+    "pending",
+    "resolve_pending",
+    "select",
+    "set_request",
+    "specs",
 ]
 
 

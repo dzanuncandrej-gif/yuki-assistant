@@ -60,7 +60,7 @@ def _close_own_tab() -> None:
             if active is not None and active.hwnd == window.hwnd and "youtube" in active.title.lower():
                 automation.press_hotkey(("ctrl", "w"))
                 time.sleep(0.3)
-        except Exception:  # noqa: BLE001 — закрыть не вышло, новое всё равно включаем
+        except Exception:
             pass
         return
 

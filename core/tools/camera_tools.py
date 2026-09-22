@@ -14,7 +14,7 @@ def configure(camera: object, ollama_url: str) -> None:
     _runtime["ollama_url"] = ollama_url
 
 
-def _camera():  # noqa: ANN202
+def _camera():
     camera = _runtime["camera"]
     if camera is None or not getattr(camera, "running", False):
         raise RuntimeError("камера не включена — она работает в режиме видеосвязи")
@@ -61,7 +61,7 @@ def _camera_describe(question: str = "") -> str:
         raise RuntimeError("модель зрения не установлена")
     prompt = question.strip() or "Что видно на этом кадре с веб-камеры? Ответь одним-двумя предложениями."
     answer = vision_model.describe(
-        camera.snapshot(), url, model, vision_model._prompt_for(model, prompt),  # noqa: SLF001
+        camera.snapshot(), url, model, vision_model._prompt_for(model, prompt),
         timeout_s=45, num_predict=120, keep_alive=vision_model.LIVE_KEEP_ALIVE,
     )
     return vision_model.to_russian(answer, url)

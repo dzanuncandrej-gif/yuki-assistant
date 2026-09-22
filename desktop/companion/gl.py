@@ -21,10 +21,9 @@ from __future__ import annotations
 import json
 import math
 from dataclasses import dataclass
-from pathlib import Path
 
 import numpy as np
-from PySide6.QtCore import QPointF, Qt, QTimer
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QImage, QOpenGLFunctions, QVector2D, QVector3D, QVector4D
 from PySide6.QtOpenGL import (
     QOpenGLBuffer,
@@ -322,7 +321,7 @@ class HairChain:
 class GLCharacter(QOpenGLWidget):
     """Виджет живого персонажа. Снаружи задаются поза, состояние и громкость."""
 
-    def __init__(self, parent=None) -> None:  # noqa: ANN001
+    def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_AlwaysStackOnTop, True)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
@@ -385,7 +384,7 @@ class GLCharacter(QOpenGLWidget):
 
     # ---------------------------------------------------------------- OpenGL
 
-    def initializeGL(self) -> None:  # noqa: N802 — Qt-нейминг
+    def initializeGL(self) -> None:
         if not self.available:
             return
         functions = QOpenGLFunctions(self.context())
@@ -450,7 +449,7 @@ class GLCharacter(QOpenGLWidget):
         )
         return triangles.reshape(-1, 2).astype(np.float32)
 
-    def paintGL(self) -> None:  # noqa: N802
+    def paintGL(self) -> None:
         functions = QOpenGLFunctions(self.context())
         functions.initializeOpenGLFunctions()
         functions.glClearColor(0.0, 0.0, 0.0, 0.0)

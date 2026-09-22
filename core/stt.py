@@ -15,8 +15,9 @@ from __future__ import annotations
 import os
 import re
 import threading
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 import numpy as np
 
@@ -133,7 +134,7 @@ class Transcriber:
         def attempt() -> None:
             try:
                 box["model"] = self._open(size, "cuda", compute)
-            except Exception as err:  # noqa: BLE001
+            except Exception as err:
                 box["error"] = err
 
         worker = threading.Thread(target=attempt, name="jarvis-cuda-probe", daemon=True)

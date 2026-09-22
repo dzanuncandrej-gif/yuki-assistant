@@ -28,7 +28,7 @@ class GlobalHotkey(QObject):
             self._listener = keyboard.GlobalHotKeys({self._combo: self.triggered.emit})
             self._listener.daemon = True
             self._listener.start()
-        except Exception:  # noqa: BLE001 — раскладка или права могут помешать перехвату
+        except Exception:
             self._listener = None
             return False
         return True

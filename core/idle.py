@@ -13,8 +13,9 @@ from __future__ import annotations
 
 import random
 import time
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Callable, Final, Sequence
+from typing import Final
 
 
 @dataclass(frozen=True)

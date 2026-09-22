@@ -22,8 +22,9 @@ import json
 import re
 import threading
 import time
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Iterator, Mapping, Sequence
+from typing import Any
 
 import requests
 
@@ -145,7 +146,7 @@ class Card:
         return self.persona or NINJA
 
     @classmethod
-    def load(cls, data: Mapping[str, Any]) -> "Card":
+    def load(cls, data: Mapping[str, Any]) -> Card:
         return cls(
             id=str(data.get("id", "")),
             name=str(data.get("name", "Консультант")),
@@ -390,7 +391,7 @@ def _generate(card: Card, question: str, found: Sequence[knowledge.Passage], url
         try:
             if response is not None:
                 response.close()
-        except Exception:  # noqa: BLE001
+        except Exception:
             pass
 
     # Проверка сказанного. Реплика с нарушением наружу уже ушла кусками, поэтому

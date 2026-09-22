@@ -10,8 +10,9 @@ import queue
 import threading
 import wave
 from collections import deque
+from collections.abc import Callable, Iterator, Mapping
 from pathlib import Path
-from typing import Any, Callable, Iterator, Mapping
+from typing import Any
 
 import numpy as np
 import sounddevice as sd
@@ -33,7 +34,7 @@ def resolve_device(value: int | str | None, kind: str) -> int | str | None:
     key = "max_input_channels" if kind == "input" else "max_output_channels"
     try:
         devices = sd.query_devices()
-    except Exception:  # noqa: BLE001 — нет звуковой подсистемы, отдаём выбор PortAudio
+    except Exception:
         return None
     for index, device in enumerate(devices):
         name = str(device["name"]).lower()
@@ -57,7 +58,7 @@ def probe_input(device: int | str | None, seconds: float = 0.35, rate: int = 160
             int(max(0.1, seconds) * rate), samplerate=rate, channels=1, dtype="float32",
             device=device, blocking=True,
         )
-    except Exception:  # noqa: BLE001 — устройство занято или не поддерживает режим
+    except Exception:
         return -1.0
     return rms(recording[:, 0])
 
@@ -77,7 +78,7 @@ def working_input(preferred: int | str | None = None, seconds: float = 0.35) -> 
         # заданное устройство молчит — ищем живое, но выбор пользователя не забываем
     try:
         devices = sd.query_devices()
-    except Exception:  # noqa: BLE001
+    except Exception:
         return preferred, "список устройств недоступен"
 
     scored: list[tuple[float, int, str]] = []
@@ -105,7 +106,7 @@ def _device_name(device: int | str | None) -> str:
     try:
         info = sd.query_devices(device)
         return str(info["name"])
-    except Exception:  # noqa: BLE001
+    except Exception:
         return str(device)
 
 
@@ -130,7 +131,7 @@ class Player:
     миллисекунд и на некоторых картах щёлкает, если делать это на каждую фразу.
     """
 
-    _shared: "Player | None" = None
+    _shared: Player | None = None
     _shared_lock = threading.Lock()
 
     def __init__(self, sample_rate: int, device: int | str | None = None, block_ms: int = 40) -> None:
@@ -142,7 +143,7 @@ class Player:
         self._analyser: lipsync.VisemeAnalyser | None = None
 
     @classmethod
-    def shared(cls, sample_rate: int, device: int | str | None = None) -> "Player":
+    def shared(cls, sample_rate: int, device: int | str | None = None) -> Player:
         """Один поток вывода на приложение. Частота сменилась — пересоздаём."""
         with cls._shared_lock:
             player = cls._shared
@@ -213,7 +214,7 @@ class Player:
                     on_level(to_level(rms(block)))
                 if on_viseme is not None and self._analyser is not None:
                     on_viseme(self._analyser(block))
-            except Exception as err:  # noqa: BLE001
+            except Exception as err:
                 from . import bus
 
                 bus.bus.log("error", f"Мимика отключена до конца реплики: {err!r}")
@@ -229,7 +230,7 @@ class Player:
         try:
             stream.abort()
             stream.start()
-        except Exception:  # noqa: BLE001 — устройство могло исчезнуть
+        except Exception:
             self.close()
 
     def close(self, drain: bool = True) -> None:
@@ -318,7 +319,7 @@ class Microphone:
 
     # --- внутреннее ---
 
-    def _callback(self, indata, frames, time_info, status) -> None:  # noqa: ANN001, ARG002
+    def _callback(self, indata, frames, time_info, status) -> None:
         self._queue.put(indata[:, 0].copy())
 
     def _calibrate(self) -> float:

@@ -1,0 +1,133 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 620" width="1180" height="620" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#070b14"/>
+      <stop offset="1" stop-color="#05070e"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#141c2e" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#080c16" stop-opacity="0.95"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#58b6ff"/>
+      <stop offset="1" stop-color="#8b6cff"/>
+    </linearGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#58b6ff"/>
+    </marker>
+    <marker id="arrowSoft" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#55637a"/>
+    </marker>
+  </defs>
+
+  <rect width="1180" height="620" fill="url(#bg)"/>
+
+  <text x="40" y="52" fill="#dfe8f7" font-size="23" font-weight="600" letter-spacing="5">Y U K I</text>
+  <text x="40" y="74" fill="#55637a" font-size="12" letter-spacing="3">VOICE AGENT · ARCHITECTURE</text>
+  <rect x="40" y="86" width="120" height="2" fill="url(#accent)"/>
+
+  <!-- ряд 1: слух -->
+  <g>
+    <rect x="40" y="120" width="180" height="78" rx="10" fill="url(#card)" stroke="#233" stroke-opacity="0.6"/>
+    <text x="60" y="150" fill="#dfe8f7" font-size="15" font-weight="600">Микрофон</text>
+    <text x="60" y="172" fill="#7d8ba3" font-size="12">выбор рабочего входа</text>
+    <text x="60" y="188" fill="#7d8ba3" font-size="12">core/audio.py</text>
+
+    <rect x="260" y="120" width="180" height="78" rx="10" fill="url(#card)" stroke="#233" stroke-opacity="0.6"/>
+    <text x="280" y="150" fill="#dfe8f7" font-size="15" font-weight="600">Детектор речи</text>
+    <text x="280" y="172" fill="#7d8ba3" font-size="12">Silero VAD, границы фраз</text>
+    <text x="280" y="188" fill="#7d8ba3" font-size="12">core/vad.py</text>
+
+    <rect x="480" y="120" width="200" height="78" rx="10" fill="url(#card)" stroke="#233" stroke-opacity="0.6"/>
+    <text x="500" y="150" fill="#dfe8f7" font-size="15" font-weight="600">Распознавание</text>
+    <text x="500" y="172" fill="#7d8ba3" font-size="12">faster-whisper + словарь</text>
+    <text x="500" y="188" fill="#7d8ba3" font-size="12">core/stt.py, lexicon.py</text>
+
+    <line x1="220" y1="159" x2="256" y2="159" stroke="#58b6ff" stroke-width="2" marker-end="url(#arrow)"/>
+    <line x1="440" y1="159" x2="476" y2="159" stroke="#58b6ff" stroke-width="2" marker-end="url(#arrow)"/>
+  </g>
+
+  <!-- развилка -->
+  <g>
+    <rect x="720" y="120" width="180" height="78" rx="10" fill="url(#card)" stroke="#58b6ff" stroke-opacity="0.35"/>
+    <text x="740" y="150" fill="#dfe8f7" font-size="15" font-weight="600">Развилка</text>
+    <text x="740" y="172" fill="#7d8ba3" font-size="12">точный шаблон или модель</text>
+    <text x="740" y="188" fill="#7d8ba3" font-size="12">core/commands.py</text>
+    <line x1="680" y1="159" x2="716" y2="159" stroke="#58b6ff" stroke-width="2" marker-end="url(#arrow)"/>
+  </g>
+
+  <!-- ряд 2: два пути -->
+  <g>
+    <rect x="620" y="250" width="240" height="96" rx="10" fill="url(#card)" stroke="#233" stroke-opacity="0.6"/>
+    <text x="640" y="280" fill="#8fd8ff" font-size="14" font-weight="600">Быстрый путь</text>
+    <text x="640" y="302" fill="#7d8ba3" font-size="12">громкость, окна, время, медиа</text>
+    <text x="640" y="320" fill="#7d8ba3" font-size="12">без модели — доли секунды</text>
+    <text x="640" y="338" fill="#55637a" font-size="11">core/commands.py</text>
+
+    <rect x="900" y="250" width="240" height="96" rx="10" fill="url(#card)" stroke="#233" stroke-opacity="0.6"/>
+    <text x="920" y="280" fill="#a88cff" font-size="14" font-weight="600">Агент с инструментами</text>
+    <text x="920" y="302" fill="#7d8ba3" font-size="12">Ollama, 88 инструментов</text>
+    <text x="920" y="320" fill="#7d8ba3" font-size="12">план → вызов → проверка</text>
+    <text x="920" y="338" fill="#55637a" font-size="11">core/agent.py, core/tools/</text>
+
+    <path d="M 790 198 L 790 224 L 740 224 L 740 246" fill="none" stroke="#58b6ff" stroke-width="2" marker-end="url(#arrow)"/>
+    <path d="M 830 198 L 830 224 L 1020 224 L 1020 246" fill="none" stroke="#58b6ff" stroke-width="2" marker-end="url(#arrow)"/>
+  </g>
+
+  <!-- подтверждение -->
+  <g>
+    <rect x="900" y="380" width="240" height="72" rx="10" fill="#1a1020" stroke="#ff8080" stroke-opacity="0.45"/>
+    <text x="920" y="408" fill="#ff9d9d" font-size="13" font-weight="600">Подтверждение человека</text>
+    <text x="920" y="428" fill="#7d8ba3" font-size="11.5">run_shell, write_file, delete_path,</text>
+    <text x="920" y="444" fill="#7d8ba3" font-size="11.5">power_control — только после «да»</text>
+    <line x1="1020" y1="346" x2="1020" y2="376" stroke="#ff8080" stroke-width="2" marker-end="url(#arrow)"/>
+  </g>
+
+  <!-- глаза -->
+  <g>
+    <rect x="40" y="250" width="240" height="96" rx="10" fill="url(#card)" stroke="#233" stroke-opacity="0.6"/>
+    <text x="60" y="280" fill="#dfe8f7" font-size="14" font-weight="600">Глаза</text>
+    <text x="60" y="302" fill="#7d8ba3" font-size="12">дерево окон UI Automation</text>
+    <text x="60" y="320" fill="#7d8ba3" font-size="12">модель зрения qwen2.5vl</text>
+    <text x="60" y="338" fill="#55637a" font-size="11">core/screen.py, vision.py</text>
+
+    <rect x="320" y="250" width="240" height="96" rx="10" fill="url(#card)" stroke="#233" stroke-opacity="0.6"/>
+    <text x="340" y="280" fill="#dfe8f7" font-size="14" font-weight="600">Память и журнал</text>
+    <text x="340" y="302" fill="#7d8ba3" font-size="12">факты о человеке, итоги звонков</text>
+    <text x="340" y="320" fill="#7d8ba3" font-size="12">откат последнего действия</text>
+    <text x="340" y="338" fill="#55637a" font-size="11">core/memory.py, journal.py</text>
+
+    <line x1="280" y1="298" x2="316" y2="298" stroke="#55637a" stroke-width="1.5" marker-end="url(#arrowSoft)"/>
+    <line x1="560" y1="298" x2="616" y2="298" stroke="#55637a" stroke-width="1.5" marker-end="url(#arrowSoft)"/>
+  </g>
+
+  <!-- ряд 3: речь -->
+  <g>
+    <rect x="40" y="400" width="240" height="96" rx="10" fill="url(#card)" stroke="#233" stroke-opacity="0.6"/>
+    <text x="60" y="430" fill="#dfe8f7" font-size="14" font-weight="600">Синтез речи</text>
+    <text x="60" y="452" fill="#7d8ba3" font-size="12">Silero → Piper → Edge → SAPI</text>
+    <text x="60" y="470" fill="#7d8ba3" font-size="12">потоком, с прерыванием</text>
+    <text x="60" y="488" fill="#55637a" font-size="11">core/tts.py, voices.py</text>
+
+    <rect x="320" y="400" width="240" height="96" rx="10" fill="url(#card)" stroke="#233" stroke-opacity="0.6"/>
+    <text x="340" y="430" fill="#dfe8f7" font-size="14" font-weight="600">Компаньон и пульт</text>
+    <text x="340" y="452" fill="#7d8ba3" font-size="12">персонаж, липсинк, эмоции</text>
+    <text x="340" y="470" fill="#7d8ba3" font-size="12">меню, диалог, трей</text>
+    <text x="340" y="488" fill="#55637a" font-size="11">desktop/</text>
+
+    <path d="M 740 346 L 740 470 L 566 470" fill="none" stroke="#58b6ff" stroke-width="2" marker-end="url(#arrow)"/>
+    <path d="M 1020 452 L 1020 520 L 160 520 L 160 500" fill="none" stroke="#58b6ff" stroke-width="2" marker-end="url(#arrow)"/>
+    <line x1="316" y1="448" x2="284" y2="448" stroke="#55637a" stroke-width="1.5" marker-end="url(#arrowSoft)"/>
+  </g>
+
+  <!-- легенда локальности -->
+  <g>
+    <rect x="620" y="400" width="240" height="96" rx="10" fill="#0c1520" stroke="#58b6ff" stroke-opacity="0.3"/>
+    <text x="640" y="430" fill="#8fd8ff" font-size="14" font-weight="600">Локально по умолчанию</text>
+    <text x="640" y="452" fill="#7d8ba3" font-size="12">речь, слух и модель — на машине</text>
+    <text x="640" y="470" fill="#7d8ba3" font-size="12">в сеть: поиск, погода, новости</text>
+    <text x="640" y="488" fill="#7d8ba3" font-size="12">и Edge-голос — только по просьбе</text>
+  </g>
+
+  <text x="40" y="576" fill="#55637a" font-size="12">Полный список модулей — в README, раздел «Как устроено».</text>
+</svg>
