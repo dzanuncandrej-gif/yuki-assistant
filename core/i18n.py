@@ -220,6 +220,9 @@ _EN: dict[str, str] = {
     "Что сейчас запущено.": "What's currently running.",
     "Диагностика недоступна.": "Diagnostics unavailable.",
     "ОБНОВИТЬ": "REFRESH",
+    "Запереть файлы в домашней папке": "Lock files to the home folder",
+    "Абсолютный путь вне неё (рабочие документы, чужие папки) будет отклонён.":
+        "An absolute path outside it (work documents, other folders) will be rejected.",
 
     # --- quicklaunch.py ---
     "Быстрый запуск": "Quick launch",

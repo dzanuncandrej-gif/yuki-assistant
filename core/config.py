@@ -126,7 +126,7 @@ DEFAULTS: Mapping[str, Any] = {
     # панель быстрого запуска: список правится прямо в меню
     "quick_launch": {"apps": None},
     "web": {"default_city": ""},
-    "files": {"search_scope": "home"},
+    "files": {"search_scope": "home", "restrict_paths": False},
     "contacts": {},
     "wake": {"enabled": False, "words": ["юки", "yuki"]},
     "server": {"host": "127.0.0.1", "port": 8765, "open_browser": True},

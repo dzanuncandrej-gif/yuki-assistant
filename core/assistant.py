@@ -235,6 +235,7 @@ class Assistant:
             {
                 "ollama_url": cfg["brain"].get("ollama_url", "http://127.0.0.1:11434"),
                 "search_scope": cfg.get("files", {}).get("search_scope", "home"),
+                "restrict_paths": cfg.get("files", {}).get("restrict_paths", False),
             }
         )
         commands.configure(

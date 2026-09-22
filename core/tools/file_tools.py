@@ -22,10 +22,21 @@ FOLDERS = {
 }
 
 _scope = {"value": "home"}
+_restrict = {"value": False}
 
 
-def configure(scope: str) -> None:
+def configure(scope: str, restrict_paths: bool = False) -> None:
     _scope["value"] = scope or "home"
+    _restrict["value"] = bool(restrict_paths)
+
+
+def _outside_home(candidate: Path) -> bool:
+    home = Path.home().resolve()
+    try:
+        candidate.resolve().relative_to(home)
+        return False
+    except ValueError:
+        return True
 
 
 def resolve(path: str, must_exist: bool = False) -> Path:
@@ -36,6 +47,14 @@ def resolve(path: str, must_exist: bool = False) -> Path:
 
     candidate = Path(os.path.expandvars(raw)).expanduser()
     if candidate.is_absolute():
+        # files.restrict_paths=true запирает файловые инструменты в домашней папке
+        # пользователя — без него абсолютный путь принимался как есть, куда угодно
+        # на диске, включая рабочие документы вне того, что помощник вообще искал.
+        if _restrict["value"] and _outside_home(candidate):
+            raise PermissionError(
+                f"путь «{candidate}» вне домашней папки — files.restrict_paths запрещает "
+                "выходить за её пределы. Отключи настройку, если это осознанно нужно"
+            )
         if must_exist and not candidate.exists():
             raise FileNotFoundError(f"нет такого пути: {candidate}")
         return candidate

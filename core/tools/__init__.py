@@ -43,6 +43,7 @@ __all__ = [
 
 def configure(settings: Mapping[str, Any]) -> None:
     """Прокидывает настройки из config.json в те инструменты, которым они нужны."""
-    file_tools.configure(str(settings.get("search_scope", "home")))
+    file_tools.configure(str(settings.get("search_scope", "home")),
+                         bool(settings.get("restrict_paths", False)))
     input_tools.configure(str(settings.get("ollama_url", "http://127.0.0.1:11434")))
     screen_tools.configure({"ollama_url": str(settings.get("ollama_url", "http://127.0.0.1:11434"))})

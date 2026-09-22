@@ -443,6 +443,14 @@ def account_page(store: SettingsStore, actions: Actions) -> QWidget:
     scope.currentIndexChanged.connect(lambda: store.set("files", "search_scope", scope.currentData()))
     card.add(scope_row)
 
+    restrict_row, restrict = toggle_row(
+        i18n.t("Запереть файлы в домашней папке"),
+        i18n.t("Абсолютный путь вне неё (рабочие документы, чужие папки) будет отклонён."),
+        bool(store.get("files", "restrict_paths", False)),
+    )
+    restrict.toggled.connect(lambda value: store.set("files", "restrict_paths", value))
+    card.add(restrict_row)
+
     system = Card(i18n.t("Запуск"), i18n.t("Как Юки ведёт себя при входе в Windows."))
     autostart_row, autostart = toggle_row(
         i18n.t("Запускать вместе с Windows"),

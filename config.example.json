@@ -86,7 +86,8 @@
     "default_city": ""
   },
   "files": {
-    "search_scope": "home"
+    "search_scope": "home",
+    "restrict_paths": false
   },
   "contacts": {},
   "wake": {
