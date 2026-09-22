@@ -131,11 +131,25 @@ class Card(QFrame):
 
     def add(self, widget: QWidget) -> QWidget:
         self._layout.addWidget(widget)
+        self._mark_last_row()
         return widget
 
     def add_all(self, widgets: Iterable[QWidget]) -> None:
         for widget in widgets:
             self.add(widget)
+
+    def _mark_last_row(self) -> None:
+        """У последней строки карточки разделителя быть не должно.
+
+        Линия между строками помогает вести глаз, но под нижней строкой она
+        превращается в лишнюю черту у самого края карточки.
+        """
+        rows = [self._layout.itemAt(index).widget() for index in range(self._layout.count())]
+        rows = [item for item in rows if isinstance(item, Row)]
+        for position, row in enumerate(rows):
+            row.setProperty("last", "true" if position == len(rows) - 1 else "false")
+            row.style().unpolish(row)
+            row.style().polish(row)
 
 
 class Row(QWidget):
@@ -144,6 +158,9 @@ class Row(QWidget):
     def __init__(self, label: str, control: QWidget, hint: str = "",
                  parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self.setObjectName("menuRow")
+        # без этого флага QSS-рамка у собственного QWidget не рисуется
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.control = control
 
         title = QLabel(label)
@@ -160,7 +177,7 @@ class Row(QWidget):
             text.addWidget(note)
 
         row = QHBoxLayout(self)
-        row.setContentsMargins(0, 6, 0, 6)
+        row.setContentsMargins(0, 10, 0, 11)
         row.setSpacing(18)
         row.addLayout(text, 1)
         row.addWidget(control, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
@@ -195,10 +212,12 @@ def slider_row(label: str, hint: str, value: float, minimum: int = 0,
     slider.setFixedWidth(168)
     slider.setCursor(Qt.CursorShape.PointingHandCursor)
 
+    # значение ползунка — отдельной плашкой: так видно, что это именно число
+    # настройки, а не случайная подпись рядом
     readout = QLabel(f"{int(value)}")
-    readout.setObjectName("rowHint")
-    readout.setFixedWidth(38)
-    readout.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+    readout.setObjectName("rowValue")
+    readout.setFixedWidth(46)
+    readout.setAlignment(Qt.AlignmentFlag.AlignCenter)
     slider.valueChanged.connect(lambda number: readout.setText(str(number)))
 
     holder = QWidget()

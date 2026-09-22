@@ -59,7 +59,7 @@ class ScenariosPage(QWidget):
         layout.addWidget(card)
 
         self.status = QLabel(i18n.t("Выберите сценарий."))
-        self.status.setObjectName("hint")
+        self.status.setObjectName("rowHint")
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
         layout.addStretch(1)
@@ -102,16 +102,20 @@ class ScenariosPage(QWidget):
         runner = _Runner(name)
         runner.moveToThread(thread)
         thread.started.connect(runner.run)
+        # получатель — метод страницы, а не свободная функция: только так Qt знает,
+        # в каком потоке выполнять, и итог приходит в главный, а не в рабочий
+        runner.done.connect(self._on_finished)
+        thread.finished.connect(thread.deleteLater)
 
-        def finish(report: str) -> None:
-            thread.quit()
-            thread.wait(2000)
-            self._thread, self._runner = None, None
-            for button in self._buttons:
-                button.setEnabled(True)
-            self.status.setText(report)
-            self.speak.emit(report)
-
-        runner.done.connect(finish)
         self._thread, self._runner = thread, runner
         thread.start()
+
+    def _on_finished(self, report: str) -> None:
+        thread = self._thread
+        self._thread, self._runner = None, None
+        if thread is not None:
+            thread.quit()
+        for button in self._buttons:
+            button.setEnabled(True)
+        self.status.setText(report)
+        self.speak.emit(report)

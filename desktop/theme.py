@@ -442,22 +442,25 @@ MENU_CARD: Final = (
     "stop:0 rgba(20, 28, 46, 0.72), stop:1 rgba(6, 9, 18, 0.72))"
 )
 
+
 MENU_QSS: Final = f"""
 #menuRoot {{
     background: {MENU_BG};
 }}
 
+/* ---------------------------------------------------------------- боковая навигация */
+
 #menuSidebar {{
     background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-        stop:0 rgba(10, 16, 30, 0.92), stop:1 rgba(4, 6, 13, 0.60));
-    border-right: 1px solid {BORDER};
+        stop:0 rgba(12, 19, 34, 0.96), stop:1 rgba(5, 8, 16, 0.72));
+    border-right: 1px solid rgba(120, 170, 255, 0.10);
 }}
 
 #menuBrand {{
     color: {TEXT};
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 700;
-    letter-spacing: 8px;
+    letter-spacing: 9px;
 }}
 
 #menuBrandSub {{
@@ -467,43 +470,51 @@ MENU_QSS: Final = f"""
     letter-spacing: 4px;
 }}
 
-/* Заголовок группы разделов в боковой панели. Разделов стало много, и без
-   подписей столбец превращается в сплошной список, по которому трудно вести глаз. */
+/* Заголовок группы разделов. Разделов много, и без подписей столбец
+   превращается в сплошной список, по которому трудно вести глаз. */
 #menuGroup {{
-    color: {MUTED};
+    color: rgba(120, 150, 195, 0.75);
     font-family: {MONO};
     font-size: 9px;
+    font-weight: 600;
     letter-spacing: 3px;
-    padding: 2px 0 4px 12px;
+    padding: 2px 0 6px 14px;
 }}
 
+/* Пункт раздела: слева место под акцентную полосу, она же показывает выбранный.
+   Полоса нагляднее подсветки фона — глаз находит текущий раздел, не читая. */
 QPushButton#menuTab {{
     background: transparent;
-    border: 1px solid transparent;
-    border-radius: 9px;
-    color: {MUTED};
-    font-size: 12.5px;
+    border: none;
+    border-left: 2px solid transparent;
+    border-radius: 0px;
+    color: rgba(190, 205, 228, 0.72);
+    font-size: 13px;
     font-weight: 600;
-    letter-spacing: 1.2px;
-    padding: 11px 14px;
+    letter-spacing: 1.1px;
+    padding: 12px 14px 12px 16px;
+    margin: 1px 10px 1px 0px;
     text-align: left;
 }}
 QPushButton#menuTab:hover {{
-    background: rgba(120, 170, 255, 0.08);
+    background: rgba(120, 170, 255, 0.07);
+    border-left-color: rgba(88, 182, 255, 0.45);
     color: {TEXT};
 }}
 QPushButton#menuTab:checked {{
     background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-        stop:0 rgba(88, 182, 255, 0.22), stop:1 rgba(88, 182, 255, 0.02));
-    border-color: rgba(88, 182, 255, 0.35);
+        stop:0 rgba(88, 182, 255, 0.20), stop:1 rgba(88, 182, 255, 0.00));
+    border-left-color: {ACCENT};
     color: #ffffff;
 }}
 
+/* ---------------------------------------------------------------- шапка раздела */
+
 #menuTitle {{
     color: {TEXT};
-    font-size: 21px;
+    font-size: 24px;
     font-weight: 300;
-    letter-spacing: 5px;
+    letter-spacing: 6px;
 }}
 
 #menuSubtitle {{
@@ -513,32 +524,13 @@ QPushButton#menuTab:checked {{
     letter-spacing: 2px;
 }}
 
-QFrame#menuCard {{
-    background: {MENU_CARD};
-    border: 1px solid {BORDER};
-    border-radius: 14px;
-}}
-
-#cardTitle {{
-    color: {TEXT};
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 2.5px;
-}}
-
-#cardHint {{
-    color: {MUTED};
-    font-size: 11.5px;
-}}
-
-#rowLabel {{
-    color: {TEXT};
-    font-size: 13px;
-}}
-
-#rowHint {{
-    color: {MUTED};
-    font-size: 11px;
+#menuRule {{
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+        stop:0 {ACCENT}, stop:0.35 rgba(139, 108, 255, 0.55), stop:1 rgba(88, 182, 255, 0.0));
+    border: none;
+    max-height: 2px;
+    min-height: 2px;
+    border-radius: 1px;
 }}
 
 #menuBadge {{
@@ -547,51 +539,144 @@ QFrame#menuCard {{
     font-size: 9px;
     font-weight: 700;
     letter-spacing: 2px;
-    border: 1px solid rgba(88, 182, 255, 0.3);
-    border-radius: 4px;
-    padding: 3px 8px;
+    border: 1px solid rgba(88, 182, 255, 0.35);
+    border-radius: 6px;
+    padding: 5px 10px;
+    background: rgba(88, 182, 255, 0.08);
 }}
 
+/* ---------------------------------------------------------------- карточки */
+
+QFrame#menuCard {{
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+        stop:0 rgba(24, 33, 54, 0.82), stop:1 rgba(9, 13, 24, 0.82));
+    border: 1px solid rgba(120, 170, 255, 0.12);
+    border-top: 1px solid rgba(160, 200, 255, 0.16);
+    border-radius: 16px;
+}}
+
+#cardTitle {{
+    color: {TEXT};
+    font-size: 12.5px;
+    font-weight: 700;
+    letter-spacing: 2.5px;
+}}
+
+#cardHint {{
+    color: rgba(150, 165, 190, 0.85);
+    font-size: 11.5px;
+}}
+
+/* Тонкая линия между строками: без неё длинный список настроек сливается
+   в сплошное полотно и глаз теряет, к какой подписи относится переключатель. */
+#menuRow {{
+    border-bottom: 1px solid rgba(120, 170, 255, 0.06);
+}}
+#menuRow[last="true"] {{
+    border-bottom: none;
+}}
+
+#rowLabel {{
+    color: {TEXT};
+    font-size: 13px;
+    font-weight: 500;
+}}
+
+#rowHint {{
+    color: rgba(130, 145, 170, 0.9);
+    font-size: 11px;
+}}
+
+#rowValue {{
+    color: {ACCENT};
+    font-family: {MONO};
+    font-size: 11px;
+    font-weight: 600;
+    background: rgba(88, 182, 255, 0.10);
+    border: 1px solid rgba(88, 182, 255, 0.22);
+    border-radius: 6px;
+    padding: 3px 0px;
+}}
+
+/* ---------------------------------------------------------------- поля ввода */
+
 QComboBox#menuSelect {{
-    background: rgba(10, 16, 28, 0.9);
-    border: 1px solid {BORDER_STRONG};
-    border-radius: 8px;
-    padding: 8px 12px;
-    min-width: 168px;
+    background: rgba(9, 14, 26, 0.92);
+    border: 1px solid rgba(120, 170, 255, 0.18);
+    border-radius: 10px;
+    padding: 9px 14px;
+    min-width: 176px;
     color: {TEXT};
     font-size: 12px;
 }}
-QComboBox#menuSelect:hover {{ border-color: {ACCENT}; }}
-QComboBox#menuSelect::drop-down {{ border: none; width: 18px; }}
-QComboBox#menuSelect::down-arrow {{ image: none; width: 0; height: 0; }}
+QComboBox#menuSelect:hover {{ border-color: rgba(88, 182, 255, 0.55); }}
+QComboBox#menuSelect:focus {{ border-color: {ACCENT}; }}
+QComboBox#menuSelect::drop-down {{
+    border: none;
+    width: 22px;
+    subcontrol-origin: padding;
+    subcontrol-position: center right;
+}}
+/* Каретка рисуется рамками: картинки в теме нет, а без неё список не читался
+   как раскрывающийся — люди не понимали, что по нему можно щёлкнуть. */
+QComboBox#menuSelect::down-arrow {{
+    image: none;
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid rgba(160, 190, 230, 0.9);
+    margin-right: 8px;
+}}
+QComboBox#menuSelect::down-arrow:hover {{
+    border-top-color: {ACCENT};
+}}
 QComboBox#menuSelect QAbstractItemView {{
     background: {PANEL_SOLID};
-    border: 1px solid {BORDER_STRONG};
-    selection-background-color: rgba(88, 182, 255, 0.20);
+    border: 1px solid rgba(88, 182, 255, 0.28);
+    border-radius: 10px;
+    selection-background-color: rgba(88, 182, 255, 0.22);
     color: {TEXT};
     padding: 6px;
     outline: none;
 }}
 
 QLineEdit#menuInput {{
-    background: rgba(10, 16, 28, 0.9);
-    border: 1px solid {BORDER_STRONG};
-    border-radius: 8px;
-    padding: 9px 13px;
+    background: rgba(9, 14, 26, 0.92);
+    border: 1px solid rgba(120, 170, 255, 0.18);
+    border-radius: 10px;
+    padding: 10px 14px;
     color: {TEXT};
     font-size: 12.5px;
     min-width: 200px;
+    selection-background-color: {ACCENT};
+    selection-color: #04060d;
 }}
+QLineEdit#menuInput:hover {{ border-color: rgba(88, 182, 255, 0.4); }}
 QLineEdit#menuInput:focus {{ border-color: {ACCENT}; }}
+
+QTextEdit {{
+    background: rgba(9, 14, 26, 0.92);
+    border: 1px solid rgba(120, 170, 255, 0.18);
+    border-radius: 12px;
+    padding: 10px 12px;
+    color: {TEXT};
+    font-size: 12.5px;
+    selection-background-color: {ACCENT};
+    selection-color: #04060d;
+}}
+QTextEdit:focus {{ border-color: {ACCENT}; }}
+
+/* ---------------------------------------------------------------- ползунок */
 
 QSlider#menuSlider::groove:horizontal {{
     height: 4px;
-    background: rgba(120, 170, 255, 0.16);
+    background: rgba(120, 170, 255, 0.14);
     border-radius: 2px;
 }}
 QSlider#menuSlider::sub-page:horizontal {{
     background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-        stop:0 rgba(88, 182, 255, 0.5), stop:1 {ACCENT});
+        stop:0 rgba(88, 182, 255, 0.45), stop:1 {ACCENT});
     border-radius: 2px;
 }}
 QSlider#menuSlider::handle:horizontal {{
@@ -604,34 +689,45 @@ QSlider#menuSlider::handle:horizontal {{
 }}
 QSlider#menuSlider::handle:horizontal:hover {{
     background: {ACCENT};
+    border-color: #eaf4ff;
 }}
 
+/* ---------------------------------------------------------------- кнопки */
+
 QPushButton#menuAction {{
-    background: rgba(88, 182, 255, 0.10);
-    border: 1px solid {BORDER_STRONG};
-    border-radius: 9px;
-    color: {TEXT};
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+        stop:0 rgba(88, 182, 255, 0.22), stop:1 rgba(139, 108, 255, 0.18));
+    border: 1px solid rgba(88, 182, 255, 0.42);
+    border-radius: 10px;
+    color: #eaf4ff;
     font-size: 11.5px;
-    font-weight: 600;
+    font-weight: 700;
     letter-spacing: 1.4px;
-    padding: 9px 18px;
+    padding: 10px 20px;
 }}
 QPushButton#menuAction:hover {{
-    background: rgba(88, 182, 255, 0.22);
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+        stop:0 rgba(88, 182, 255, 0.38), stop:1 rgba(139, 108, 255, 0.30));
     border-color: {ACCENT};
 }}
+QPushButton#menuAction:pressed {{
+    background: rgba(88, 182, 255, 0.45);
+}}
+
 QPushButton#menuGhost {{
-    background: transparent;
-    border: 1px solid {BORDER};
-    border-radius: 9px;
-    color: {MUTED};
+    background: rgba(120, 170, 255, 0.04);
+    border: 1px solid rgba(120, 170, 255, 0.16);
+    border-radius: 10px;
+    color: rgba(190, 205, 228, 0.85);
     font-size: 11.5px;
+    font-weight: 600;
     letter-spacing: 1.2px;
-    padding: 9px 16px;
+    padding: 10px 18px;
 }}
 QPushButton#menuGhost:hover {{
     color: {TEXT};
-    border-color: {BORDER_STRONG};
+    background: rgba(120, 170, 255, 0.10);
+    border-color: rgba(88, 182, 255, 0.45);
 }}
 
 /* Недоступная кнопка обязана выглядеть недоступной. Без этого «Отправить»
@@ -644,6 +740,38 @@ QPushButton#menuAction:disabled, QPushButton#menuGhost:disabled {{
     color: rgba(255, 255, 255, 0.22);
 }}
 
+/* Кнопка закрытия в шапке: крестик рисуется шрифтом, поэтому размер задаётся
+   явно — иначе на части систем глиф не находился и оставался пустой квадрат. */
+QPushButton#menuClose {{
+    background: transparent;
+    border: 1px solid rgba(120, 170, 255, 0.14);
+    border-radius: 8px;
+    color: rgba(190, 205, 228, 0.8);
+    font-family: {MONO};
+    font-size: 15px;
+    font-weight: 600;
+    padding: 0px;
+}}
+QPushButton#menuClose:hover {{
+    background: rgba(224, 92, 92, 0.18);
+    border-color: rgba(224, 92, 92, 0.5);
+    color: #ffdede;
+}}
+
 QScrollArea#menuScroll {{ background: transparent; border: none; }}
 QScrollArea#menuScroll > QWidget > QWidget {{ background: transparent; }}
+
+QScrollBar:vertical {{
+    background: transparent;
+    width: 8px;
+    margin: 4px 0;
+}}
+QScrollBar::handle:vertical {{
+    background: rgba(120, 170, 255, 0.22);
+    border-radius: 4px;
+    min-height: 40px;
+}}
+QScrollBar::handle:vertical:hover {{ background: rgba(88, 182, 255, 0.45); }}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{ background: transparent; }}
 """

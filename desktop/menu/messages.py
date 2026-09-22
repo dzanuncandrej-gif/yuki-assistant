@@ -56,6 +56,7 @@ class MessagesPage(QWidget):
         self._draft: outbox.Draft | None = None
         self._thread: QThread | None = None
         self._worker: _Worker | None = None
+        self._done: Callable[[object, str], None] | None = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 8, 0)
@@ -71,12 +72,15 @@ class MessagesPage(QWidget):
         card = Card(i18n.t("Кому"), i18n.t("Мессенджер и человек. Юки откроет переписку и покажет, кого нашла."))
 
         self.service = QComboBox()
+        self.service.setObjectName("menuSelect")
         for item in outbox.services():
             self.service.addItem(item.title, item.key)
         self.service.setCursor(Qt.CursorShape.PointingHandCursor)
         card.add(Row(i18n.t("Мессенджер"), self.service, i18n.t("Куда отправлять.")))
 
         self.contact = QLineEdit()
+        self.contact.setObjectName("menuInput")
+        self.contact.setMinimumWidth(240)
         self.contact.setPlaceholderText(i18n.t("например: Максиму"))
         self.contact.returnPressed.connect(self._find)
         card.add(Row(i18n.t("Контакт"), self.contact, i18n.t("Имя так, как вы его называете.")))
@@ -107,7 +111,7 @@ class MessagesPage(QWidget):
         card.add(buttons)
 
         self.status = QLabel(i18n.t("Выберите мессенджер и введите имя."))
-        self.status.setObjectName("hint")
+        self.status.setObjectName("rowHint")
         self.status.setWordWrap(True)
         card.add(self.status)
         return card
@@ -167,22 +171,38 @@ class MessagesPage(QWidget):
     # ---------------------------------------------------------------- шаги
 
     def _run(self, job: Callable[[], object], done: Callable[[object, str], None]) -> None:
+        """Запускает долгий шаг в отдельном потоке, а ответ принимает в своём.
+
+        Тонкое место, из-за которого окно раньше зависало и закрывалось:
+        `worker.done` испускается в рабочем потоке, а обычная функция получателем
+        быть не может — у неё нет своего потока, и Qt вызывает её прямо там, где
+        сигнал возник. В итоге поток ждал `thread.wait()` сам себя, а надписи
+        обновлялись не из главного потока — это уже неопределённое поведение Qt,
+        которое Windows показывает как «не отвечает».
+
+        Метод объекта страницы такой двусмысленности не создаёт: страница живёт в
+        главном потоке, Qt сам ставит вызов в его очередь.
+        """
         thread = QThread(self)
         worker = _Worker(job)
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
+        worker.done.connect(self._on_worker_done)
+        thread.finished.connect(thread.deleteLater)
 
-        def finish(result: object, error: str) -> None:
-            thread.quit()
-            thread.wait(2000)
-            self._thread, self._worker = None, None
-            done(result, error)
-            self._refresh()
-
-        worker.done.connect(finish)
-        self._thread, self._worker = thread, worker
+        self._thread, self._worker, self._done = thread, worker, done
         self._refresh()
         thread.start()
+
+    def _on_worker_done(self, result: object, error: str) -> None:
+        """Итог фонового шага — уже в главном потоке."""
+        thread, done = self._thread, self._done
+        self._thread, self._worker, self._done = None, None, None
+        if thread is not None:
+            thread.quit()   # ждать завершения здесь нельзя: поток закончится сам
+        if done is not None:
+            done(result, error)
+        self._refresh()
 
     def _find(self) -> None:
         name = self.contact.text().strip()

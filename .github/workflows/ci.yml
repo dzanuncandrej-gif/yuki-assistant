@@ -38,7 +38,7 @@ jobs:
       # Полный requirements.txt тянет torch и mediapipe — несколько гигабайт ради
       # тестов чистой логики. Ставим только то, что действительно импортируется.
       - name: Зависимости для тестов
-        run: pip install pytest numpy psutil requests pywin32
+        run: pip install pytest numpy psutil requests pywin32 PySide6-Essentials
       - name: Прогнать тесты
         run: pytest -q
 

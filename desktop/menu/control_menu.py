@@ -20,6 +20,7 @@ from PySide6.QtCore import (
 from PySide6.QtGui import QKeySequence, QPainterPath, QRegion, QShortcut
 from PySide6.QtWidgets import (
     QButtonGroup,
+    QFrame,
     QGraphicsOpacityEffect,
     QHBoxLayout,
     QLabel,
@@ -199,10 +200,13 @@ class ControlMenu(QWidget):
     def _build_content(self) -> QWidget:
         content = QWidget()
 
-        close = QPushButton("✕")
-        close.setObjectName("menuGhost")
-        close.setFixedSize(34, 30)
+        # «✕» — не во всех шрифтах есть этот знак, и вместо крестика оставался
+        # пустой квадрат. Обычный «×» из основного набора рисуется везде.
+        close = QPushButton("×")
+        close.setObjectName("menuClose")
+        close.setFixedSize(32, 32)
         close.setCursor(Qt.CursorShape.PointingHandCursor)
+        close.setToolTip(i18n.t("ESC — закрыть\nCTRL+ALT+J — окно Юки").splitlines()[0])
         close.clicked.connect(self.close)
 
         badge = QLabel("LIVE")
@@ -218,13 +222,21 @@ class ControlMenu(QWidget):
         header.setContentsMargins(0, 0, 0, 0)
         header.setSpacing(12)
         header.addLayout(heading, 1)
-        header.addWidget(badge)
-        header.addWidget(close)
+        header.addWidget(badge, 0, Qt.AlignmentFlag.AlignTop)
+        header.addWidget(close, 0, Qt.AlignmentFlag.AlignTop)
+
+        # короткая акцентная линия под шапкой: отделяет заголовок от содержимого
+        # и задаёт разделу цвет, по которому его узнаёшь боковым зрением
+        rule = QFrame()
+        rule.setObjectName("menuRule")
+        rule.setFixedHeight(2)
+        rule.setFixedWidth(220)
 
         layout = QVBoxLayout(content)
-        layout.setContentsMargins(30, 26, 24, 24)
-        layout.setSpacing(18)
+        layout.setContentsMargins(34, 28, 28, 26)
+        layout.setSpacing(16)
         layout.addLayout(header)
+        layout.addWidget(rule)
         layout.addWidget(self.pages, 1)
         return content
 
