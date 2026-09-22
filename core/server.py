@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Mapping
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, status
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -29,6 +29,10 @@ def create_app(cfg: Mapping[str, Any]) -> FastAPI:
         finally:
             assistant.stop()
 
+    host = str(cfg.get("server", {}).get("host", "127.0.0.1"))
+    port = int(cfg.get("server", {}).get("port", 8765))
+    allowed_origins = {f"http://{h}:{port}" for h in (host, "127.0.0.1", "localhost")}
+
     app = FastAPI(title="Юки", lifespan=lifespan)
     app.state.assistant = assistant
 
@@ -38,6 +42,14 @@ def create_app(cfg: Mapping[str, Any]) -> FastAPI:
 
     @app.websocket("/ws")
     async def ws(socket: WebSocket) -> None:
+        # Браузерная страница с другого источника не должна дотягиваться до
+        # ассистента через WebSocket — сервер слушает только localhost, но без
+        # этой проверки любая открытая в браузере вкладка могла бы подключиться
+        # и слать команды от имени пользователя (см. заголовок Origin в запросе).
+        origin = socket.headers.get("origin")
+        if origin is not None and origin not in allowed_origins:
+            await socket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
         await socket.accept()
         queue = bus.bus.subscribe()
         for event in bus.bus.history():

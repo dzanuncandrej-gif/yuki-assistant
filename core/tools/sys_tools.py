@@ -130,6 +130,7 @@ def _stats() -> str:
         "timeout": param_int("Ограничение по времени в секундах, по умолчанию 20"),
     },
     ["command"],
+    confirm=True,
 )
 def _run_shell(command: str, timeout: int = 20) -> str:
     if _DANGEROUS.search(command):

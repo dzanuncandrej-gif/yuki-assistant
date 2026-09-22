@@ -47,6 +47,7 @@
     "edge_pitch": "-12Hz",
     "pyttsx3_rate": 180,
     "pyttsx3_voice_hint": "ru",
+    "allow_cloud_voice": false,
     "voice": "sora"
   },
   "brain": {

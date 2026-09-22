@@ -92,6 +92,7 @@ def _create_folder(path: str) -> str:
         "append": param_bool("true — дописать в конец, false — перезаписать"),
     },
     ["path", "content"],
+    confirm=True,
 )
 def _write_file(path: str, content: str, append: bool = False) -> str:
     from .. import journal

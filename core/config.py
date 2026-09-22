@@ -59,6 +59,7 @@ DEFAULTS: Mapping[str, Any] = {
         "voice_gain": 1.0,
         "pyttsx3_rate": 180,
         "pyttsx3_voice_hint": "ru",
+        "allow_cloud_voice": False,  # тихий автопереход на Edge (сеть), если Silero/Piper упали
     },
     "brain": {
         "ollama_url": "http://127.0.0.1:11434",

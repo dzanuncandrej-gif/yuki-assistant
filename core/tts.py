@@ -234,6 +234,9 @@ class Speaker:
             if edge_voice:
                 self._cfg["edge_voice"] = edge_voice
             if language == "en":
+                # человек явно попросил английский — это и есть согласие на
+                # Edge, gate по allow_cloud_voice здесь ни к чему
+                self._cfg["engine"] = "edge"
                 self._engine_name = self._preferred_engine = "edge"
             else:
                 self._engine_name = self._preferred_engine = self._pick_engine()
@@ -299,7 +302,20 @@ class Speaker:
             return False
         return True
 
+    def _edge_allowed(self) -> bool:
+        """Edge-TTS отправляет текст ответа на сервер Microsoft — это не «локально».
+
+        Разрешён без вопросов, если голос выбран явно (`engine: "edge"`). Как
+        тихий автоматический запасной вариант — только если это отдельно включено
+        в config.json (`tts.allow_cloud_voice`), а не всегда, как было раньше.
+        """
+        if str(self._cfg.get("engine", "auto")).lower() == "edge":
+            return True
+        return bool(self._cfg.get("allow_cloud_voice", False))
+
     def _edge_available(self) -> bool:
+        if not self._edge_allowed():
+            return False
         try:
             import edge_tts  # noqa: F401
         except ImportError:
