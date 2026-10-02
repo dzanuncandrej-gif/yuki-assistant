@@ -22,3 +22,21 @@ ui3d/characters/*/
 assets/companion/reference.png
 assets/companion/parts/
 web/page/assets/samurai.glb
+
+# Личные данные пользователя: книга людей, плейлист, проекты агента, обложки, журналы.
+# В открытый репозиторий это попасть не должно ни при каких условиях.
+data/people.json
+data/playlist.json
+data/projects.json
+data/covers/
+data/*.log
+data/run.err
+data/*.tmp
+
+# Материалы клиентов и компании (Hattatsu, «Дубрава») — не часть Юки и не для открытого репозитория.
+web/page/index.html
+web/page/twin.html
+web/page/twin/
+data/docs/
+data/knowledge/
+data/benchmark.json

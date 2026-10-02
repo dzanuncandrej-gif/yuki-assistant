@@ -183,8 +183,18 @@ def create_app(character: str = "default") -> FastAPI:
     app.router.lifespan_context = lifespan
 
     @app.get("/")
-    async def index() -> FileResponse:
-        return FileResponse(PAGE / "index.html")
+    async def index():
+        # своя страница кладётся в web/page/index.html; в репозиторий она не входит
+        if (PAGE / "index.html").is_file():
+            return FileResponse(PAGE / "index.html")
+        from fastapi.responses import HTMLResponse
+
+        return HTMLResponse(
+            "<!doctype html><meta charset='utf-8'><title>Юки — веб-режим</title>"
+            "<body style='font:16px system-ui;background:#05070e;color:#e8eefa;padding:40px'>"
+            "<h1>Юки работает</h1><p>Веб-режим запущен. Положи свою страницу в "
+            "<code>web/page/index.html</code> — она откроется здесь. API: <code>/api/voice</code>.</p>"
+        )
 
     @app.get("/api/voice")
     async def voice(text: str, name: str = character):
