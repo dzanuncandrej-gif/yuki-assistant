@@ -12,6 +12,8 @@ from pathlib import Path
 
 import requests
 
+from .ollama_ctx import num_ctx
+
 VISION_HINTS = ("llava", "vision", "-vl", "vl-", "vl:", "moondream", "bakllava", "minicpm-v", "gemma3")
 
 # чем меньше модель, тем быстрее она подгружается рядом с основной моделью агента
@@ -42,14 +44,37 @@ def _session() -> requests.Session:
     return session
 
 
+def brain_model() -> str:
+    """Основная языковая модель из настроек."""
+    from . import config
+
+    return str(config.load().get("brain", {}).get("model", ""))
+
+
+def unified(model: str | None) -> bool:
+    """Модель зрения — это и есть основная модель: ни выгрузок, ни перезагрузок."""
+    return bool(model) and model == brain_model()
+
+
 def available_model(url: str) -> str | None:
-    """Установленная модель зрения. Из нескольких выбираем самую лёгкую по списку PREFERRED."""
+    """Модель зрения. Если основная модель сама видит картинки — берём её.
+
+    Одна модель на всё — главное ускорение: раньше модель зрения выталкивала
+    языковую из видеопамяти, и каждый взгляд стоил секунды перезагрузки весов.
+    Иначе — отдельная модель зрения, самая лёгкая по списку PREFERRED.
+    """
     try:
         response = _session().get(f"{url}/api/tags", timeout=3)
         response.raise_for_status()
-        models = [str(item.get("name", "")) for item in response.json().get("models", ())]
+        rows = list(response.json().get("models", ()))
+        models = [str(item.get("name", "")) for item in rows]
     except (requests.RequestException, ValueError):
         return None
+
+    brain = brain_model()
+    for item in rows:
+        if str(item.get("name")) == brain and "vision" in (item.get("capabilities") or ()):
+            return brain
 
     candidates = [name for name in models if any(hint in name.lower() for hint in VISION_HINTS)]
     if not candidates:
@@ -103,7 +128,7 @@ def to_russian(text: str, url: str, timeout_s: float = 60.0) -> str:
                 "stream": False,
                 "keep_alive": "30m",
                 "messages": [{"role": "user", "content": f"{TRANSLATE_PROMPT}\n\n{text}"}],
-                "options": {"temperature": 0.1, "num_predict": 160},
+                "options": {"temperature": 0.1, "num_predict": 160, "num_ctx": num_ctx()},
             },
             timeout=timeout_s,
         )
@@ -112,6 +137,48 @@ def to_russian(text: str, url: str, timeout_s: float = 60.0) -> str:
         return translated or text
     except (requests.RequestException, ValueError, KeyError):
         return text
+
+
+def _generate(url: str, payload: dict, timeout_s: float) -> dict:
+    response = _session().post(f"{url}/api/generate", json=payload, timeout=timeout_s)
+    response.raise_for_status()
+    return response.json()
+
+
+def _server_detail(err: Exception) -> str:
+    """Что именно ответил Ollama. Голый «500 Server Error» не говорит ничего."""
+    response = getattr(err, "response", None)
+    if response is None:
+        return str(err)
+    try:
+        message = str(response.json().get("error", "")).strip()
+    except ValueError:
+        message = response.text.strip()
+    return message[:200]
+
+
+def free_vram(url: str, keep: str = "") -> None:
+    """Выгружает из видеопамяти все модели, кроме нужной.
+
+    Восьми гигабайт хватает ровно на одну модель: пока в памяти висит языковая
+    с keep_alive «30m», зрение не загружается и Ollama отвечает 500.
+    """
+    try:
+        loaded = _session().get(f"{url}/api/ps", timeout=3).json().get("models", ())
+    except (requests.RequestException, ValueError):
+        return
+    for item in loaded:
+        name = str(item.get("name", ""))
+        if not name or name == keep:
+            continue
+        try:
+            _session().post(
+                f"{url}/api/generate",
+                json={"model": name, "keep_alive": 0},
+                timeout=20,
+            )
+        except requests.RequestException:
+            continue
 
 
 def describe(
@@ -128,16 +195,31 @@ def describe(
         "prompt": prompt,
         "images": [base64.b64encode(image).decode("ascii")],
         "stream": False,
-        # вне звонка модель зрения живёт недолго: она делит видеопамять с моделью агента
-        "keep_alive": keep_alive,
-        "options": {"temperature": 0.2, "num_predict": int(num_predict)},
+        # вне звонка отдельная модель зрения живёт недолго: она делит видеопамять с
+        # моделью агента. Если это и есть основная модель — держим её как обычно.
+        "keep_alive": "30m" if unified(model) else keep_alive,
+        "think": False,
+        # Штраф за повторы обязателен: qwen2.5vl на скриншотах зацикливается на одной
+        # фразе, а Ollama с версии 0.35 обрывает такой ответ ошибкой «token repeat
+        # limit reached» — зрение выглядело просто молчащим.
+        "options": {"temperature": 0.2, "num_predict": int(num_predict),
+                    "repeat_penalty": 1.15, "repeat_last_n": 128, "top_p": 0.9,
+                    **({"num_ctx": num_ctx()} if unified(model) else {})},
     }
     try:
-        response = _session().post(f"{url}/api/generate", json=payload, timeout=timeout_s)
-        response.raise_for_status()
-        data = response.json()
+        data = _generate(url, payload, timeout_s)
     except (requests.RequestException, ValueError) as err:
-        raise VisionError("модель зрения не ответила") from err
+        # 500 от Ollama на восьми гигабайтах почти всегда значит одно: рядом уже
+        # лежит языковая модель и зрению не хватило видеопамяти. Освобождаем её
+        # и пробуем ещё раз — это дешевле, чем честный отказ человеку.
+        detail = _server_detail(err)
+        try:
+            free_vram(url, keep=model)
+            data = _generate(url, payload, timeout_s)
+        except (requests.RequestException, ValueError):
+            raise VisionError(
+                f"модель зрения не ответила: {detail}" if detail else "модель зрения не ответила"
+            ) from err
     text = str(data.get("response", "")).strip()
     if not text:
         raise VisionError("модель зрения вернула пустой ответ")

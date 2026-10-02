@@ -23,6 +23,7 @@ from PySide6.QtWebEngineCore import (
 
 SCHEME = b"jarvis"
 ROOT = Path(__file__).resolve().parent.parent / "ui3d"
+COVERS = Path(__file__).resolve().parent.parent / "data" / "covers"
 
 # путь внутри схемы → ресурс Qt: канал связи страницы с питоном
 _QT_RESOURCES = {"vendor/qwebchannel.js": ":/qtwebchannel/qwebchannel.js"}
@@ -84,8 +85,13 @@ class AssetHandler(QWebEngineUrlSchemeHandler):
             self._reply_resource(job, resource, b"application/javascript")
             return
 
-        target = (self.root / relative).resolve()
-        if not target.is_relative_to(self.root) or not target.is_file():
+        base = self.root
+        if relative.startswith("covers/"):
+            # обложки песен плейлиста лежат в data/, а не среди файлов интерфейса
+            base = COVERS.resolve()
+            relative = relative.removeprefix("covers/")
+        target = (base / relative).resolve()
+        if not target.is_relative_to(base) or not target.is_file():
             job.fail(QWebEngineUrlRequestJob.Error.UrlNotFound)
             return
 

@@ -48,11 +48,11 @@
     "pyttsx3_rate": 180,
     "pyttsx3_voice_hint": "ru",
     "allow_cloud_voice": false,
-    "voice": "sora"
+    "voice": "william"
   },
   "brain": {
     "ollama_url": "http://127.0.0.1:11434",
-    "model": "qwen3:8b",
+    "model": "qwen3.5:9b",
     "fast_model": "",
     "timeout_s": 120,
     "history_turns": 11,
@@ -61,9 +61,9 @@
     "temperature": 0.57,
     "tool_temperature": 0.15,
     "num_predict": 260,
-    "num_ctx": 8192,
+    "num_ctx": 6144,
     "route_tools": true,
-    "heavy_model": "qwen3:8b"
+    "heavy_model": "qwen3.5:9b"
   },
   "live": {
     "preview_fps": 8.0,
@@ -105,7 +105,7 @@
   "companion": {
     "enabled": false,
     "name": "Юки",
-    "voice": "sora",
+    "voice": "yuki",
     "character": "",
     "framing": "full",
     "quality": "high",

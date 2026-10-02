@@ -35,7 +35,13 @@ def configure(settings: dict[str, str] | None) -> None:
 )
 def _read_screen() -> str:
     state = screen.scene(fresh=True)
-    return state.summary()
+    summary = state.summary()
+    # дерево окна скупое (браузер, игра, Electron) — добавляем текст экрана распознаванием
+    if sum(len(text) for text in state.texts) < 200:
+        text = screen.ocr_text(1600)
+        if text:
+            summary += f" Текст на экране (распознан): {text}"
+    return summary
 
 
 @tool(
@@ -120,6 +126,11 @@ def _wait_for_control(name: str, seconds: int = 8, gone: bool = False) -> str:
 )
 def _read_window_text() -> str:
     text = screen.screen_text()
+    if len(text) >= 200:
+        return text
+    recognized = screen.ocr_text()
+    if recognized:
+        return (text + " | " if text else "") + f"распознано на экране: {recognized}"
     return text or "в окне нет читаемого текста — попробуй look_at_screen"
 
 

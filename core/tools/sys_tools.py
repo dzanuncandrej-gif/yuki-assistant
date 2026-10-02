@@ -68,8 +68,12 @@ def _media(action: str) -> str:
     key = action.strip().lower()
     if key not in ("play_pause", "next", "prev", "stop"):
         raise ValueError("допустимо: play_pause, next, prev, stop")
-    automation.media(key)
-    return f"медиа: {key}"
+    if key == "stop":
+        automation.media(key)
+        return "медиа: стоп"
+    from .. import media
+
+    return media.control({"prev": "previous"}.get(key, key))
 
 
 @tool(
@@ -152,6 +156,23 @@ def _kill(name: str) -> str:
 
     _need_intent(_CLOSE_WORDS, "завершить процесс")
     return f"завершено: {automation.kill_process(name)}"
+
+
+@tool(
+    "restart_as_admin",
+    "Перезапускает Юки с правами администратора, чтобы управлять окнами, которые запущены "
+    "от администратора (диспетчер задач, установщики, часть игр). Windows спросит согласие.",
+)
+def _restart_as_admin() -> str:
+    from .. import bus, elevation
+
+    if elevation.is_admin():
+        return "я уже работаю с правами администратора"
+    if not elevation.relaunch_as_admin():
+        raise RuntimeError("Windows не дала запустить с правами администратора — согласие не получено")
+    # новый экземпляр запрошен: этот закрывается, как только ответ прозвучит
+    bus.bus.publish({"type": "ui", "action": "quit_later"})
+    return "перезапускаюсь с правами администратора — подтверди запрос Windows"
 
 
 @tool("lock_computer", "Блокирует компьютер (экран блокировки Windows).")

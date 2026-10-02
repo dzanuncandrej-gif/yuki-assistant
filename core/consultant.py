@@ -29,6 +29,7 @@ from typing import Any
 import requests
 
 from . import guard, knowledge, phrasing
+from .ollama_ctx import num_ctx
 
 # --- характер --------------------------------------------------------------
 
@@ -357,7 +358,7 @@ def _generate(card: Card, question: str, found: Sequence[knowledge.Passage], url
         "options": {
             "temperature": plan.temperature,
             "num_predict": plan.num_predict,
-            "num_ctx": 8192,
+            "num_ctx": num_ctx(),
         },
         "think": plan.think,
     }
@@ -426,7 +427,7 @@ def suggest(card: Card, url: str, model: str, count: int = 5) -> tuple[str, ...]
                 "model": model, "stream": False, "keep_alive": "30m",
                 "messages": [{"role": "user",
                               "content": SUGGEST_PROMPT.format(count=count, passages=sample)}],
-                "options": {"temperature": 0.4, "num_predict": 220},
+                "options": {"temperature": 0.4, "num_predict": 220, "num_ctx": num_ctx()},
                 "think": False,
             },
             timeout=120,

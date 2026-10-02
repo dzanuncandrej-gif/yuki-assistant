@@ -22,9 +22,8 @@ def _list_voices() -> str:
 
 @tool(
     "set_voice",
-    "Переключает голос ассистента. Доступны: jarvis (низкий спокойный мужской), "
-    "atlas (молодой естественный мужской), aura (мягкий женский).",
-    {"name": param_str("Имя голоса", enum=["jarvis", "atlas", "aura"])},
+    "Переключает голос ассистента. Доступны: william, remy, dmitry (мужские), yuki (женский).",
+    {"name": param_str("Имя голоса", enum=["william", "remy", "dmitry", "yuki"])},
     ["name"],
 )
 def _set_voice(name: str) -> str:
@@ -35,7 +34,7 @@ def _set_voice(name: str) -> str:
 @tool(
     "test_voice",
     "Даёт послушать, как звучит голос, не меняя выбранный.",
-    {"name": param_str("Имя голоса", enum=["jarvis", "atlas", "aura"])},
+    {"name": param_str("Имя голоса", enum=["william", "remy", "dmitry", "yuki"])},
     ["name"],
 )
 def _test_voice(name: str) -> str:

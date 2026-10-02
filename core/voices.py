@@ -19,7 +19,7 @@ BASE_URL = "https://huggingface.co/rhasspy/piper-voices/resolve/main"
 SILERO_PATH = config.ROOT / "models" / "silero" / "v4_ru.pt"
 SILERO_URL = "https://models.silero.ai/models/tts/ru/v4_ru.pt"
 
-DEFAULT = "jarvis"
+DEFAULT = "william"
 
 
 def silero_ready() -> bool:
@@ -52,6 +52,8 @@ class Profile:
     # английский голос той же интонации: Silero и Piper знают только русский,
     # поэтому английский режим ассистента всегда говорит через Edge
     edge_voice_en: str = "en-US-AriaNeural"
+    # грамматический род ассистента: «я нашла» или «я нашёл» — см. core/persona.py
+    gender: str = "f"
 
     @property
     def model_path(self) -> Path:
@@ -91,161 +93,100 @@ class Profile:
 
 
 PROFILES: tuple[Profile, ...] = (
+    # Мужские голоса выбраны на слух 30.09.2026 со страницы прослушки: William,
+    # Rémy и Дмитрий. Все три — нейроголоса Microsoft, по Whisper 0–3 % ошибок.
+    # Тон синтезу не сдвигаем и звук не обрабатываем: нейроголос уже сведён, а
+    # компрессия и эквалайзер поверх делали его менее естественным.
+    # Без сети говорит Silero того же пола.
     Profile(
-        key="jarvis",
-        title="ДЖАРВИС",
-        character="низкий спокойный мужской",
+        key="william",
+        gender="m",
+        title="WILLIAM",
+        character="мужской: бодрый, дружелюбный, живой",
         model_name="ru_RU-dmitri-medium",
         remote="ru/ru_RU/dmitri/medium/ru_RU-dmitri-medium.onnx",
-        preset="cinema",
-        length_scale=0.9,   # бодрый темп: медленная речь ощущается как «тормозит»
-        gain=1.0,
-        noise_scale=0.58,   # меньше шума в возбуждении — чище согласные
-        noise_w=0.75,       # ровнее длительности фонем, речь не «плавает»
-        sample="Юки на связи. Системы в норме, слушаю вас.",
-        silero_speaker="aidar",
-        edge_voice="ru-RU-DmitryNeural",
-        edge_rate="+4%",
-        edge_pitch="-12Hz",
-        edge_voice_en="en-US-GuyNeural",
-    ),
-    Profile(
-        key="atlas",
-        title="АТЛАС",
-        character="молодой естественный мужской",
-        model_name="ru_RU-ruslan-medium",
-        remote="ru/ru_RU/ruslan/medium/ru_RU-ruslan-medium.onnx",
-        preset="natural",
-        length_scale=0.96,
-        gain=1.0,
-        noise_scale=0.62,
-        noise_w=0.78,
-        sample="Атлас на связи. Говорю обычным живым голосом.",
-        silero_speaker="eugene",
-        edge_voice="ru-RU-DmitryNeural",
-        edge_rate="+8%",
-        edge_pitch="+6Hz",
-        edge_voice_en="en-US-ChristopherNeural",
-    ),
-    Profile(
-        key="aura",
-        title="АУРА",
-        character="мягкий женский",
-        model_name="ru_RU-irina-medium",
-        remote="ru/ru_RU/irina/medium/ru_RU-irina-medium.onnx",
-        preset="natural",
-        length_scale=0.96,
-        gain=0.98,
-        noise_scale=0.62,
-        noise_w=0.78,
-        sample="Аура на связи. Мой голос мягче и спокойнее.",
-        silero_speaker="baya",
-        edge_voice="ru-RU-SvetlanaNeural",
-        edge_rate="+6%",
-        edge_pitch="+0Hz",
-        edge_voice_en="en-US-JennyNeural",
-    ),
-    Profile(
-        key="samurai",
-        title="САМУРАЙ",
-        character="глубокий властный мужской",
-        model_name="ru_RU-dmitri-medium",
-        remote="ru/ru_RU/dmitri/medium/ru_RU-dmitri-medium.onnx",
-        preset="samurai",
+        preset="raw",
         length_scale=0.94,
-        # пик после обработки был 0.45 — половина запаса пропадала впустую,
-        # и властный голос звучал тише, чем должен
-        gain=1.25,
-        noise_scale=0.55,
-        noise_w=0.72,
-        sample="Я слушаю. Задайте вопрос — отвечу по существу.",
+        sample="Уильям на связи. Говори, что делаем.",
+        silero_speaker="eugene",
+        edge_voice="en-AU-WilliamMultilingualNeural",
+        edge_rate="+0%",
+        edge_pitch="+0Hz",
+        edge_voice_en="en-AU-WilliamMultilingualNeural",
+    ),
+    Profile(
+        key="remy",
+        gender="m",
+        title="RÉMY",
+        character="мужской: мягкий, спокойный, бархатный",
+        model_name="ru_RU-dmitri-medium",
+        remote="ru/ru_RU/dmitri/medium/ru_RU-dmitri-medium.onnx",
+        preset="raw",
+        length_scale=0.94,
+        sample="Реми здесь. Спокойно, всё сделаю.",
+        silero_speaker="eugene",
+        edge_voice="fr-FR-RemyMultilingualNeural",
+        edge_rate="+0%",
+        edge_pitch="+0Hz",
+        edge_voice_en="fr-FR-RemyMultilingualNeural",
+    ),
+    Profile(
+        key="dmitry",
+        gender="m",
+        title="ДМИТРИЙ",
+        character="мужской: родной русский диктор, чёткий",
+        model_name="ru_RU-dmitri-medium",
+        remote="ru/ru_RU/dmitri/medium/ru_RU-dmitri-medium.onnx",
+        preset="raw",
+        length_scale=0.94,
+        sample="Дмитрий на связи. Все системы в норме.",
         silero_speaker="aidar",
         edge_voice="ru-RU-DmitryNeural",
-        # Тон опускает сам синтез: это чисто и не даёт артефактов, в отличие от
-        # пересэмплирования на нашей стороне. Темп чуть выше обычного — быстрая
-        # ровная речь звучит уверенно, медленная читается как неповоротливость.
-        # Минус тридцать четыре герца звучали неестественно — тон уезжал так низко,
-        # что синтез начинал «квакать» на длинных гласных. Восемнадцать дают глубину
-        # без искажения. Темп чуть сбавлен: спокойная речь весомее торопливой.
-        edge_rate="+4%",
-        edge_pitch="-18Hz",
-        edge_voice_en="en-US-EricNeural",
+        edge_rate="+0%",
+        edge_pitch="+0Hz",
+        edge_voice_en="en-US-AndrewMultilingualNeural",
     ),
-    # --- голоса экранного компаньона: живые, эмоциональные, женские ---
-    Profile(
-        key="mira",
-        title="МИРА",
-        character="живой аниме-женский, тёплый",
-        model_name="ru_RU-irina-medium",
-        remote="ru/ru_RU/irina/medium/ru_RU-irina-medium.onnx",
-        preset="anime",
-        length_scale=0.92,   # чуть быстрее: живая речь, а не диктор
-        gain=1.0,
-        noise_scale=0.66,    # больше вариаций интонации — меньше «робота»
-        noise_w=0.82,
-        sample="Я Мира. Я рядом — просто скажи, и я всё сделаю.",
-        silero_speaker="xenia",
-        edge_voice="ru-RU-SvetlanaNeural",
-        edge_rate="+9%",
-        edge_pitch="+22Hz",
-        edge_voice_en="en-US-JennyNeural",
-    ),
+    # Женский голос выбран на слух со страницы прослушки: Vivienne в варианте
+    # «живее» — темп +6 %, тон +4 Гц. Остальные женские кандидатки не понравились.
     Profile(
         key="yuki",
         title="ЮКИ",
-        character="звонкий аниме-женский, игривый",
+        character="женский: живой, тёплый, выразительный",
         model_name="ru_RU-irina-medium",
         remote="ru/ru_RU/irina/medium/ru_RU-irina-medium.onnx",
-        preset="anime",
-        length_scale=0.88,
-        gain=1.0,
-        noise_scale=0.70,
-        noise_w=0.85,
-        sample="Юки на связи! Давай уже что-нибудь придумаем вместе.",
-        silero_speaker="kseniya",
-        edge_voice="ru-RU-SvetlanaNeural",
-        edge_rate="+14%",
-        edge_pitch="+34Hz",
-        edge_voice_en="en-US-AnaNeural",
-    ),
-    Profile(
-        key="sora",
-        title="СОРА",
-        character="спокойный аниме-женский, мягкий",
-        model_name="ru_RU-irina-medium",
-        remote="ru/ru_RU/irina/medium/ru_RU-irina-medium.onnx",
-        preset="anime_soft",
-        length_scale=0.96,
-        gain=0.98,
-        noise_scale=0.62,
-        noise_w=0.80,
-        sample="Сора здесь. Говорю тихо и спокойно, чтобы тебе было уютно.",
-        silero_speaker="baya",
-        edge_voice="ru-RU-SvetlanaNeural",
-        edge_rate="+2%",
-        edge_pitch="+14Hz",
-        edge_voice_en="en-US-AriaNeural",
+        preset="raw",
+        length_scale=0.94,
+        noise_scale=0.64,
+        noise_w=0.8,
+        sample="Юки на связи! Я рядом — скажи, и я всё сделаю.",
+        silero_speaker="xenia",
+        edge_voice="fr-FR-VivienneMultilingualNeural",
+        edge_rate="+6%",
+        edge_pitch="+4Hz",
+        edge_voice_en="fr-FR-VivienneMultilingualNeural",
     ),
 )
 
-# голоса, которые предлагаются экранному компаньону: женские и живые
-COMPANION_KEYS: tuple[str, ...] = ("mira", "yuki", "sora", "aura")
+# голоса, которые предлагаются экранному компаньону
+COMPANION_KEYS: tuple[str, ...] = ("yuki", "william", "remy", "dmitry")
+
+# Прежние голоса ведут в новые: в config.json и в командах они ещё встречаются.
+LEGACY: dict[str, str] = {
+    "jarvis": "william", "atlas": "william", "samurai": "dmitry",
+    "aura": "yuki", "mira": "yuki", "sora": "yuki",
+}
 
 # как голос могут назвать вслух: имя, синоним, английское написание
 ALIASES: dict[str, str] = {
-    # «юки» — имя голоса компаньона (см. ниже), а не первый профиль: раньше ключ
-    # повторялся четырежды в одном словаре, и что именно он значит, зависело от
-    # того, какая строка оказалась последней
-    "jarvis": "jarvis",
-    "основной": "jarvis", "низкий": "jarvis", "стандартный": "jarvis",
-    "атлас": "atlas", "atlas": "atlas", "атласа": "atlas", "атласом": "atlas",
-    "молодой": "atlas", "обычный": "atlas",
-    "аура": "aura", "aura": "aura", "ауру": "aura", "ауры": "aura", "аурой": "aura",
-    "женский": "aura", "женским": "aura", "мягкий": "aura",
-    "мира": "mira", "миру": "mira", "миры": "mira", "мирой": "mira", "mira": "mira",
-    "компаньон": "mira", "аниме": "mira",
-    "юки": "yuki", "юку": "yuki", "yuki": "yuki", "игривый": "yuki", "звонкий": "yuki",
-    "сора": "sora", "сору": "sora", "sora": "sora", "тихий": "sora", "спокойный": "sora",
+    "william": "william", "уильям": "william", "уильяма": "william", "вильям": "william",
+    "вильяма": "william", "уильямом": "william", "мужской": "william", "мужским": "william",
+    "основной": "william", "джарвис": "william", "джарвиса": "william", "атлас": "william",
+    "remy": "remy", "rémy": "remy", "реми": "remy", "рэми": "remy", "реми́": "remy",
+    "мягкий": "remy", "бархатный": "remy",
+    "dmitry": "dmitry", "дмитрий": "dmitry", "дмитрия": "dmitry", "дмитрием": "dmitry",
+    "дима": "dmitry", "диму": "dmitry", "диктор": "dmitry", "русский": "dmitry", "самурай": "dmitry",
+    "юки": "yuki", "юку": "yuki", "yuki": "yuki", "женский": "yuki", "женским": "yuki",
+    "девушка": "yuki", "аура": "yuki", "ауру": "yuki", "мира": "yuki", "сора": "yuki",
 }
 
 
@@ -307,6 +248,7 @@ def catalog() -> tuple[Profile, ...]:
 
 def get(key: str | None) -> Profile | None:
     needle = str(key or "").strip().lower()
+    needle = LEGACY.get(needle, needle)
     for profile in PROFILES:
         if profile.key == needle:
             return profile

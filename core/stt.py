@@ -96,6 +96,28 @@ def normalize_audio(audio: np.ndarray) -> np.ndarray:
     return boosted.astype(np.float32)
 
 
+def _whisper_class():
+    """faster_whisper без torch.
+
+    ctranslate2 при импорте пробует подтянуть torch — он ему нужен только для
+    конвертации моделей, не для распознавания. Сам импорт torch стоит ~200 МБ
+    памяти. На время импорта прячем его: ctranslate2 честно решает, что torch
+    нет, а запасной голос Silero потом всё равно сможет загрузить его сам.
+    """
+    import sys
+
+    if "faster_whisper" in sys.modules or "torch" in sys.modules:
+        from faster_whisper import WhisperModel
+
+        return WhisperModel
+    sys.modules["torch"] = None  # type: ignore[assignment] — import torch → ImportError
+    try:
+        from faster_whisper import WhisperModel
+    finally:
+        sys.modules.pop("torch", None)
+    return WhisperModel
+
+
 class Transcriber:
     """Ленивая обёртка над WhisperModel: модель грузится при первом вызове."""
 
@@ -113,7 +135,7 @@ class Transcriber:
         return str(local) if (local / "model.bin").exists() else size
 
     def _open(self, size: str, device: str, compute: str) -> Any:
-        from faster_whisper import WhisperModel
+        WhisperModel = _whisper_class()
 
         return WhisperModel(
             self._path(size),

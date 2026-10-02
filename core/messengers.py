@@ -75,6 +75,10 @@ def knows(name: str) -> bool:
     needle = str(name or "").strip().lower()
     if not needle:
         return False
+    from . import people
+
+    if people.lookup(needle) is not None:
+        return True
     pool = set(_contacts) | {str(value).strip().lower() for value in _contacts.values()}
     if needle in pool:
         return True

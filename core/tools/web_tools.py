@@ -99,6 +99,18 @@ def _open_website(url: str) -> str:
 
 
 @tool(
+    "find_image",
+    "Ищет картинку или фото по описанию и показывает выдачу в браузере: «картинка "
+    "пистолета», «фото кота», «обои с самураем». Это поиск изображений в интернете, "
+    "а не разглядывание экрана — look_at_screen тут не нужен.",
+    {"query": param_str("Что за картинка, по-русски: «пистолет», «закат над морем»")},
+    ["query"],
+)
+def _find_image(query: str) -> str:
+    return f"открыт поиск картинок: «{web.open_images(query)}»"
+
+
+@tool(
     "browser_search",
     "Открывает поисковую выдачу в браузере (google, yandex, youtube, duckduckgo).",
     {

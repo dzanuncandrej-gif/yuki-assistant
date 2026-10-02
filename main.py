@@ -7,6 +7,14 @@
 
 from __future__ import annotations
 
+import os
+
+# OpenBLAS (внутри numpy) заранее резервирует буфер на каждое ядро процессора:
+# на 16 потоках это было 500 МБ памяти, которые Юки никогда не использовала —
+# тяжёлой матричной математики на процессоре у неё нет. Двух потоков хватает.
+# Задать своё значение можно переменной окружения до запуска.
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "2")
+
 import argparse
 from pathlib import Path
 

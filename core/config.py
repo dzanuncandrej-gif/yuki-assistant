@@ -53,7 +53,7 @@ DEFAULTS: Mapping[str, Any] = {
     },
     "tts": {
         "engine": "auto",
-        "voice": "jarvis",  # профиль из core/voices.py: jarvis | atlas | aura
+        "voice": "william",  # профиль из core/voices.py: william | remy | dmitry | yuki
         "piper_model": "models/piper/ru_RU-dmitri-medium.onnx",
         "piper_speaker": None,
         "voice_preset": "deep",
@@ -64,8 +64,8 @@ DEFAULTS: Mapping[str, Any] = {
     },
     "brain": {
         "ollama_url": "http://127.0.0.1:11434",
-        "model": "qwen3:8b",
-        "fast_model": "qwen2.5:3b",   # лёгкая модель для разговора в звонке
+        "model": "qwen3.5:9b",        # одна модель на всё: текст, инструменты и зрение
+        "fast_model": "",             # вторая модель не влезает в 8 ГБ вместе с первой
         "timeout_s": 120,
         "history_turns": 8,
         "max_steps": 8,
@@ -73,7 +73,7 @@ DEFAULTS: Mapping[str, Any] = {
         "route_tools": True,
         "temperature": 0.3,
         "num_predict": 400,
-        "num_ctx": 8192,
+        "num_ctx": 6144,  # при 8192 часть qwen3.5:9b уходит на процессор
     },
     # режим видеосвязи: как часто Юки сам смотрит на экран
     "live": {

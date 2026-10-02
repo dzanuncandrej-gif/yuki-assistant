@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Юки — диалог</title>
+<link rel="stylesheet" href="./css/yuki.css">
+<link rel="stylesheet" href="./css/hub.css">
+<script src="./vendor/qwebchannel.js"></script>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/three.module.js", "three/addons/": "./vendor/addons/" } }
+</script>
+</head>
+<body>
+  <div class="hub">
+    <section class="stage" aria-label="Ядро Юки">
+      <canvas class="gl" aria-hidden="true"></canvas>
+      <div class="stage__top">
+        <span class="pill" id="state-pill"><i></i><span id="state-text">запуск</span></span>
+        <span class="pill" id="model-pill"><i></i><span id="model-text">модель…</span></span>
+      </div>
+      <div class="stage__caption">
+        <p class="stage__hint mono" id="hint">скажи «Юки» или напиши ниже</p>
+        <p class="stage__sub" id="subtitle" aria-live="polite"></p>
+      </div>
+      <div class="stage__actions">
+        <button class="btn btn--primary" id="call" type="button" title="Видеосвязь (Ctrl+D)">
+          <svg viewBox="0 0 24 24"><path d="M15 10l5-3v10l-5-3z"/><rect x="3" y="6" width="12" height="12" rx="3"/></svg>
+          Видеосвязь
+        </button>
+        <button class="btn btn--icon is-on" id="mic" type="button" title="Микрофон" aria-pressed="true">
+          <svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg>
+        </button>
+        <button class="btn btn--icon" id="stop" type="button" title="Замолчать (Ctrl+Space)">
+          <svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+        </button>
+        <button class="btn btn--icon" id="reset" type="button" title="Новый разговор (Ctrl+R)">
+          <svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 108-8 8 8 0 00-6.3 3M4 4v4h4"/></svg>
+        </button>
+      </div>
+      <dl class="stage__meters mono">
+        <div><dt>CPU</dt><dd id="cpu">—</dd></div>
+        <div><dt>RAM</dt><dd id="ram">—</dd></div>
+        <div><dt>ГОЛОС</dt><dd id="voice">—</dd></div>
+      </dl>
+    </section>
+
+    <section class="chat" aria-label="Переписка">
+      <header class="chat__head">
+        <div>
+          <h1>Переписка</h1>
+          <p class="mono" id="counter">новый разговор</p>
+        </div>
+        <div class="chat__tools">
+          <button class="chip" id="expand" type="button" title="Показывать шаги агента">шаги агента</button>
+        </div>
+      </header>
+      <div class="chat__scroll" id="scroll">
+        <div class="chat__empty" id="empty">
+          <svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="44"/><path d="M31 30 L50 52 L69 30 M50 52 L50 76"/></svg>
+          <h2>Чем займёмся?</h2>
+          <p>Говори голосом или пиши. Юки управляет компьютером, читает экран, пишет код и работает с выделенным текстом в любой программе. Из любого окна — <b>Ctrl+Alt+Пробел</b>.</p>
+        </div>
+        <ol class="chat__list" id="list"></ol>
+      </div>
+      <div class="suggest" id="suggest">
+        <button type="button" class="chip">Доброе утро</button>
+        <button type="button" class="chip">Что мне писали?</button>
+        <button type="button" class="chip">Что у меня на экране?</button>
+        <button type="button" class="chip">Включи мою музыку</button>
+        <button type="button" class="chip">Напиши игру змейка</button>
+        <button type="button" class="chip">Громкость 40</button>
+        <button type="button" class="chip">Что ты умеешь?</button>
+      </div>
+      <form class="composer" id="composer" autocomplete="off">
+        <textarea id="input" rows="1" placeholder="Напиши Юки…  Enter — отправить" aria-label="Сообщение"></textarea>
+        <button class="btn btn--primary btn--icon" type="submit" title="Отправить">
+          <svg viewBox="0 0 24 24"><path d="M4 12l16-8-6 16-2.5-6.5z"/></svg>
+        </button>
+      </form>
+    </section>
+  </div>
+  <script type="module" src="./js/hub.js"></script>
+</body>
+</html>

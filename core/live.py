@@ -51,6 +51,28 @@ TROUBLE = re.compile(
 # насколько кадры должны разойтись, чтобы считать это новой сценой (из 256 бит)
 CHANGE_BITS = 14
 
+# быстрое восприятие: не чаще раза в секунду, а в тишине — раз в двадцать секунд
+SENSE_GAP_S = 1.0
+SENSE_IDLE_S = 20.0
+
+# вопрос именно про картинку — текстом экрана на него не ответить
+PIXEL_QUESTIONS = re.compile(
+    r"(как\s+выглядит|что\s+(?:на|за)\s+(?:картинк|фото|изображени|видео|рисунк|игр)|изображен\w*|нарисован\w*|"
+    r"что\s+(?:за\s+)?(?:картинка|фото|игра|видео)|"
+    r"какого\s+цвета|какой\s+цвет|кто\s+(?:на|это\s+на)\s+(?:фото|картинк|видео|экране)|"
+    r"опиши\s+(?:картинк|фото|изображени|что\s+видишь)|что\s+нарисован|персонаж|график|диаграмм|"
+    r"what\s+does\s+it\s+look|describe\s+the\s+(?:image|picture|photo))",
+    re.IGNORECASE,
+)
+
+# вне звонка про экран спрашивают явно — «объясни» само по себе к экрану не относится
+EXPLICIT_SCREEN = re.compile(
+    r"(на\s+(?:моём\s+|мо[её]м\s+)?экране|изображен\w*\s+на\s+экран\w*|что\s+(?:ты\s+)?видишь|посмотри\s+на\s+экран|"
+    r"что\s+у\s+меня\s+(?:тут|открыто|на\s+экране)|прочитай\s+(?:с\s+экрана|что\s+(?:тут|на\s+экране|написано))|"
+    r"(?:эт[аоуи]\w*|эту)\s+ошибк\w*|что\s+(?:за|это\s+за)\s+ошибк\w*|что\s+тут\s+написано)",
+    re.IGNORECASE,
+)
+
 
 @dataclass
 class Frame:
@@ -71,6 +93,89 @@ class Frame:
 
 
 @dataclass
+class Sense:
+    """Быстрое восприятие экрана без видеокарты: структура окна плюс OCR.
+
+    Собирается при каждой смене сцены за доли секунды. На нём держатся ответы
+    про экран, подсказки о проблемах и живая подпись в окне звонка. Модель
+    зрения нужна только там, где текста почти нет: картинка, видео, игра.
+    """
+
+    app: str = ""
+    title: str = ""
+    dialog: str = ""
+    focused: str = ""
+    controls: tuple[str, ...] = ()
+    text: str = ""               # распознанный текст экрана одной выжимкой
+    fresh: tuple[str, ...] = ()  # строки, которых не было в прошлом кадре
+    at: float = 0.0
+    spent_ms: float = 0.0
+
+    @property
+    def age(self) -> float:
+        return time.monotonic() - self.at if self.at else 1e9
+
+    @property
+    def sparse(self) -> bool:
+        """Текста мало — значит, на экране картинка, видео или игра."""
+        return len(self.text) < 120
+
+    def caption(self) -> str:
+        """Короткая подпись для окна звонка и журнала."""
+        head = f"{self.app}: «{self.title}»" if self.title else (self.app or "Экран")
+        if self.dialog:
+            return f"{head}. Диалог: {self.dialog}"
+        if self.fresh:
+            return f"{head}. Появилось: {' · '.join(self.fresh[:3])[:180]}"
+        return head
+
+    def digest(self, limit: int = 2200) -> str:
+        """Всё, что известно об экране, — для языковой модели."""
+        parts = [f"Активное окно: «{self.title}» ({self.app})."]
+        if self.dialog:
+            parts.append(f"Открыт диалог: {self.dialog}.")
+        if self.focused:
+            parts.append(f"Фокус ввода: {self.focused}.")
+        if self.controls:
+            parts.append("Кнопки и элементы: " + ", ".join(self.controls[:18]) + ".")
+        if self.fresh:
+            parts.append("Только что появилось: " + " | ".join(self.fresh[:8]))
+        if self.text:
+            parts.append("Текст на экране (распознан, возможны опечатки в похожих буквах): " + self.text[:limit])
+        return "\n".join(parts)
+
+
+def sense_screen(previous: Sense | None = None) -> Sense:
+    """Снимает структуру окна и текст экрана. Около трёх десятых секунды."""
+    from . import ocr, screen
+
+    started = time.monotonic()
+    try:
+        state = screen.scene(fresh=True)
+        title, app, dialog, focused = state.title, state.process, state.dialog, state.focused
+        controls = tuple(item.name for item in state.controls if item.name)[:30]
+        uia_text = " · ".join(state.texts[:12])
+    except Exception:
+        title = app = dialog = focused = uia_text = ""
+        controls = ()
+    text = ""
+    lines: tuple[str, ...] = ()
+    try:
+        reading = ocr.read_screen()
+        text = reading.compact(2400)
+        lines = tuple(line.text.strip() for line in reading.lines if len(line.text.strip()) > 3)
+    except Exception:
+        text = uia_text
+    if not text:
+        text = uia_text
+    old = set(previous.text.split(" | ")) if previous is not None and previous.text else set()
+    fresh = tuple(line for line in lines if line not in old)[:12] if old else ()
+    return Sense(app=app, title=title, dialog=dialog, focused=focused, controls=controls,
+                 text=text, fresh=fresh, at=time.monotonic(),
+                 spent_ms=(time.monotonic() - started) * 1000)
+
+
+@dataclass
 class Stats:
     """Показатели конвейера — их видно в интерфейсе звонка."""
 
@@ -81,6 +186,8 @@ class Stats:
     errors: int = 0
     last_error: str = ""
     healthy: bool = True
+    sense_ms: float = 0.0
+    senses: int = 0
 
     def as_line(self) -> str:
         state = "норма" if self.healthy else "сбой"
@@ -110,8 +217,11 @@ class Watcher:
         self.analyze_side = int(analyze_side)
 
         self.frame = Frame()
+        self.sense = Sense()
         self.stats = Stats()
         self.on_frame: Callable[[Frame], None] | None = None
+        self.on_sense: Callable[[Sense], None] | None = None
+        self._sensed = threading.Event()
 
         # последний кадр держим как есть: интерфейс забирает его сам, когда успевает
         self.preview: bytes = b""
@@ -126,6 +236,7 @@ class Watcher:
         self._changed = threading.Event()
         self._last_analysis = 0.0
         self._backoff = 0.0
+        self._sense_lock = threading.Lock()
 
     # ---------------------------------------------------------------- жизненный цикл
 
@@ -136,8 +247,8 @@ class Watcher:
         self._changed.set()  # первый разбор сразу, не дожидаясь изменений
         threads = (
             (self._preview_loop, "jarvis-preview"),
+            (self._sense_loop, "jarvis-sense"),
             (self._analysis_loop, "jarvis-vision"),
-            (self._warmup, "jarvis-vision-warmup"),
         )
         for target, name in threads:
             thread = threading.Thread(target=target, name=name, daemon=True)
@@ -157,7 +268,8 @@ class Watcher:
         return bool(self._threads) and not self._stop.is_set()
 
     def _warmup(self) -> None:
-        """Первый запрос к модели зрения самый долгий — делаем его заранее и молча."""
+        """Прогрев модели зрения. Больше не запускается сам: модель зрения нужна
+        редко, а прогретая заранее она вытесняла языковую из видеопамяти."""
         model = vision.available_model(self.ollama_url)
         if model is None or self._stop.is_set():
             return
@@ -259,8 +371,41 @@ class Watcher:
             if signature and self._distance(signature, self._signature) > CHANGE_BITS:
                 self._signature = signature
                 self._changed.set()  # сцена сменилась — будим зрение
+                self._sensed.set()   # и быстрое восприятие
 
             self._stop.wait(max(0.0, period - (time.monotonic() - started)))
+
+    # ---------------------------------------------------------------- быстрое восприятие
+
+    def _sense_loop(self) -> None:
+        """Текст и структура экрана при каждой смене сцены, но не чаще раза в секунду."""
+        self._sensed.set()
+        while not self._stop.is_set():
+            self._sensed.wait(timeout=SENSE_IDLE_S)
+            if self._stop.is_set():
+                return
+            self._sensed.clear()
+            self.sense_now()
+            self._stop.wait(SENSE_GAP_S)
+
+    def sense_now(self) -> Sense:
+        """Свежее восприятие прямо сейчас — для вопроса про экран."""
+        with self._sense_lock:
+            try:
+                sensed = sense_screen(self.sense)
+            except Exception as err:
+                self.stats.last_error = f"восприятие: {err.__class__.__name__}"
+                return self.sense
+            self.sense = sensed
+            self.stats.sense_ms = sensed.spent_ms
+            self.stats.senses += 1
+        bus.bus.publish({"type": "vision", "caption": sensed.caption(), "at": sensed.at, "source": "sense"})
+        if self.on_sense is not None:
+            try:
+                self.on_sense(sensed)
+            except Exception:
+                pass
+        return sensed
 
     # ---------------------------------------------------------------- разбор сценой
 
@@ -280,6 +425,17 @@ class Watcher:
                     return
             if self._busy.is_set():
                 continue  # предыдущий разбор ещё идёт — второй запускать бессмысленно
+            if not self.sense.at:
+                # первое быстрое чтение ещё не готово — подождём его, а не будим
+                # модель зрения вслепую: она вытеснила бы языковую из видеопамяти
+                self._stop.wait(1.5)
+                if not self.sense.at:
+                    continue
+            if not self.sense.sparse and not vision.unified(vision.available_model(self.ollama_url)):
+                # Текст и структура уже описывают экран, а отдельная модель зрения
+                # вытеснила бы языковую из видеопамяти. Если модель одна на всё,
+                # картинку разбирать дёшево — тогда смотрим и на неё.
+                continue
             if self._wait_until_free():
                 continue  # человек говорит с ней — видеокарта сейчас нужна ответу
             try:
@@ -356,6 +512,12 @@ class Watcher:
             raise vision.VisionError(frame.error)
         return frame.caption
 
+    def digest(self, fresh: bool = True) -> Sense:
+        """Восприятие для вопроса про экран: свежее, если просят, иначе последнее."""
+        if fresh or self.sense.age > 3.0:
+            return self.sense_now()
+        return self.sense
+
     def context(self, max_age_s: float = 40.0) -> str:
         """Что сейчас на экране — для подсказки языковой модели.
 
@@ -365,12 +527,16 @@ class Watcher:
         разборами проходят десятки секунд, и окно за это время могло смениться.
         """
         parts: list[str] = []
-        try:
-            from . import screen
+        sensed = self.sense
+        if sensed.at and sensed.age < 30.0:
+            parts.append(sensed.digest(limit=900))
+        else:
+            try:
+                from . import screen
 
-            parts.append(screen.scene().summary(limit=10))
-        except Exception:
-            pass
+                parts.append(screen.scene().summary(limit=10))
+            except Exception:
+                pass
         frame = self.frame
         if frame.caption and frame.age <= max_age_s:
             parts.append(f"Картина экрана: {frame.caption}")
@@ -380,6 +546,16 @@ class Watcher:
 def wants_screen(text: str) -> bool:
     """Вопрос относится к тому, что видно на экране."""
     return bool(SCREEN_QUESTIONS.search(str(text or "")))
+
+
+def asks_about_screen(text: str) -> bool:
+    """Вне звонка: человек явно спрашивает про экран."""
+    return bool(EXPLICIT_SCREEN.search(str(text or "")))
+
+
+def needs_pixels(text: str) -> bool:
+    """На вопрос не ответить текстом экрана — нужна модель зрения."""
+    return bool(PIXEL_QUESTIONS.search(str(text or "")))
 
 
 def looks_like_trouble(caption: str) -> bool:

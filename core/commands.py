@@ -332,8 +332,8 @@ _NOT_MEDIA = re.compile(
 )
 def _media_next(_: re.Match[str]) -> str:
     """«Другую песню» — это следующий трек, а не поиск песни «другая»."""
-    media.next_track()
-    return "Переключила."
+    result = media.next_track()
+    return result[:1].upper() + result[1:] + "."
 
 
 @register(
@@ -374,6 +374,31 @@ def _youtube(match: re.Match[str]) -> str:
     return f"Включаю {media.play_video(query)}."
 
 
+_MINE = r"(?:мо[юйиё]|мою\s+любим\w+|мой\s+любим\w+|мои\s+любим\w+|любим\w+|сво[юйи]|наш\w*)"
+
+
+@register(
+    rf"^{_PLAY}\s+(?:мне\s+)?(?P<mine>{_MINE})\s+(?:{_MUSIC_WORDS}|песн\w*|треки)"
+    rf"(?:\s+(?P<shuffle>вперемешку|в\s+случайном\s+порядке|рандомно))?$"
+    rf"|^{_PLAY}\s+(?:что[\s-]*нибудь\s+)?(?:из|с)\s+(?:моего\s+|своего\s+)?плейлист\w*(?:\s+(?P<query>.+))?$"
+    rf"|^{_PLAY}\s+(?:мой\s+|свой\s+)?плейлист(?:\s+(?P<shuffle2>вперемешку))?$"
+    rf"|^(?P<mix>перемешай|перемешать)(?:\s+(?:мой\s+)?(?:плейлист|музыку|песни))?$",
+    name="playlist",
+    example="включи мою любимую музыку",
+    priority=SPECIFIC,
+)
+def _playlist(match: re.Match[str]) -> str:
+    """Свой плейлист вместо поиска наугад на YouTube."""
+    from . import playlist
+
+    media._close_own_tab()
+    shuffle = bool(match.group("shuffle") or match.group("shuffle2") or match.group("mix"))
+    try:
+        return playlist.play(match.group("query") or "", shuffle=shuffle)
+    except playlist.PlaylistError as err:
+        return str(err)[:1].upper() + str(err)[1:] + "."
+
+
 @register(
     rf"^{_PLAY}\s+(?P<mod>(?:[\w-]+\s+){{0,3}}?){_MUSIC_WORDS}(?:\s+(?P<query>.+))?$",
     name="music",
@@ -389,6 +414,13 @@ def _music(match: re.Match[str]) -> str:
     else:
         request = " ".join(part for part in (mod, query) if part)
     if not request:
+        # просто «включи музыку» — свой плейлист, если он есть: без рекламы и случайных роликов
+        from . import playlist
+
+        try:
+            return playlist.play(shuffle=True)
+        except playlist.PlaylistError:
+            pass
         media.play_music(None)
         return "Включаю музыку."
     return f"Включаю {media.play_music(request)}."
@@ -742,8 +774,8 @@ def _stop_music(_: re.Match[str]) -> str:
     это не было вовсе. Фраза уходила в модель, та видела инструмент play_music —
     и вместо остановки включала музыку заново.
     """
-    automation.media("play_pause")
-    return "Выключила."
+    result = media.stop()
+    return result[:1].upper() + result[1:] + "."
 
 
 # Только целая фраза. Раньше шаблон искал «play» где угодно, и «открой
@@ -755,8 +787,8 @@ def _stop_music(_: re.Match[str]) -> str:
     example="пауза",
 )
 def _play(_: re.Match[str]) -> str:
-    automation.media("play_pause")
-    return "Готово."
+    result = media.control("play_pause")
+    return result[:1].upper() + result[1:] + "."
 
 
 @register(
@@ -766,8 +798,8 @@ def _play(_: re.Match[str]) -> str:
     example="предыдущий трек",
 )
 def _prev(_: re.Match[str]) -> str:
-    automation.media("prev")
-    return "Предыдущий."
+    result = media.control("previous")
+    return result[:1].upper() + result[1:] + "."
 
 
 @register(
@@ -1129,6 +1161,9 @@ def _resume_pending(text: str) -> str | None:
             outbox.deliver(draft, request.message)
         except FAILURES as err:
             return f"Не смогла отправить: {err}"
+        from . import people
+
+        people.learn(request.contact, draft.found, request.app)
         return f"Отправила «{request.message}» — {draft.found}."
     if _CANCEL.match(text):
         outbox.cancel()
@@ -1148,8 +1183,14 @@ def _send_composite(request: phrases.SendRequest) -> str:
     if not request.message:
         _set_pending("message", request)
         return f"Что написать {who}?"
+    from . import people
+
+    # человек из книги — ищем сразу по точному имени и не переспрашиваем
+    person = people.lookup(who)
+    search_for = person.name if person is not None else who
+    app = person.app if person is not None and not phrases.mentions_messenger(request.contact) else request.app
     try:
-        draft = outbox.prepare(request.app, who)
+        draft = outbox.prepare(app, search_for, also=(who,) if person is not None else ())
         if not draft.found:
             others = f" Похожие: {', '.join(draft.candidates[:3])}." if draft.candidates else ""
             return f"Не нашла «{who}» в {draft.service.title}.{others}"
@@ -1162,6 +1203,7 @@ def _send_composite(request: phrases.SendRequest) -> str:
         return f"Не смогла отправить: {err}"
     except Exception as err:
         return f"Не смогла отправить: {err}"
+    people.learn(who, draft.found, app)
     return f"Отправила {draft.found}: «{request.message}»."
 
 

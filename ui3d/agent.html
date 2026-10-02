@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Юки — агент</title>
+<link rel="stylesheet" href="./css/yuki.css">
+<link rel="stylesheet" href="./css/agent.css">
+<script src="./vendor/qwebchannel.js"></script>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/three.module.js", "three/addons/": "./vendor/addons/" } }
+</script>
+</head>
+<body>
+<div class="agent" id="agent">
+  <!-- строка задачи -->
+  <form class="prompt" id="prompt" autocomplete="off">
+    <div class="prompt__field">
+      <svg class="prompt__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 4l-3 16"/></svg>
+      <textarea id="task" rows="1" aria-label="Задача для агента" placeholder="Опиши программу — например, игра змейка с рекордом и паузой"></textarea>
+      <span class="prompt__mode" id="mode" hidden>доработка</span>
+    </div>
+    <div class="prompt__actions">
+      <button class="btn btn--primary" id="create" type="submit" title="Ctrl+Enter">
+        <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg><span id="create-label">Создать</span>
+      </button>
+      <button class="btn btn--danger" id="stop" type="button" hidden>
+        <svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>Стоп
+      </button>
+    </div>
+  </form>
+  <div class="chips" id="chips" role="list" aria-label="Быстрые идеи"></div>
+
+  <div class="work">
+    <!-- левая колонка: конвейер, план, журнал, недавние -->
+    <aside class="side">
+      <section class="panel pipeline" aria-label="Ход работы">
+        <header class="panel__head">
+          <div>
+            <p class="eyebrow" id="project-kind">агент-программист</p>
+            <h2 id="project-title">Новый проект</h2>
+          </div>
+          <div class="timer mono" id="timer" aria-live="off">0:00</div>
+        </header>
+        <ol class="stages" id="stages"></ol>
+        <div class="meter" aria-hidden="true"><i id="speed-bar"></i></div>
+        <p class="speed mono" id="speed">модель ждёт задачу</p>
+      </section>
+
+      <section class="panel features" aria-label="План">
+        <header class="panel__head panel__head--small"><h3>План</h3><span class="count mono" id="feature-count">—</span></header>
+        <ul class="feature-list" id="features"><li class="empty">Функции появятся, когда Юки продумает проект</li></ul>
+      </section>
+
+      <section class="panel log" aria-label="Журнал">
+        <header class="panel__head panel__head--small"><h3>Журнал</h3></header>
+        <ol class="log-list" id="log" aria-live="polite"></ol>
+      </section>
+
+      <section class="panel recent" aria-label="Недавние проекты">
+        <header class="panel__head panel__head--small"><h3>Недавние</h3></header>
+        <ul class="recent-list" id="recent"></ul>
+      </section>
+    </aside>
+
+    <!-- правая часть: редактор -->
+    <section class="ide" aria-label="Код проекта">
+      <header class="ide__bar">
+        <div class="tabs" id="tabs" role="tablist" aria-label="Файлы"></div>
+        <div class="ide__actions">
+          <button class="icon-btn" id="copy" type="button" title="Скопировать файл" aria-label="Скопировать файл">
+            <svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>
+          </button>
+          <button class="icon-btn" id="run" type="button" title="Запустить" aria-label="Запустить проект" disabled>
+            <svg viewBox="0 0 24 24"><path d="M7 4.5v15l12.5-7.5z"/></svg>
+          </button>
+          <button class="icon-btn" id="folder" type="button" title="Открыть папку" aria-label="Открыть папку" disabled>
+            <svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+          </button>
+          <button class="icon-btn" id="editor" type="button" title="Открыть в VS Code" aria-label="Открыть в редакторе" disabled>
+            <svg viewBox="0 0 24 24"><path d="M17 3l4 2v14l-4 2-11-9zM17 3L6 12 3 9.5M17 21L6 12l-3 2.5"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <div class="code" id="code-wrap">
+        <div class="empty-state" id="empty">
+          <canvas class="gl" id="orb" aria-hidden="true"></canvas>
+          <div class="empty-state__text">
+            <p class="eyebrow">агент · план → код → тесты → робот → ревью</p>
+            <h1>Опиши программу —<br><span class="grad">Юки соберёт её целиком</span></h1>
+            <p>Спланирует архитектуру, напишет код по файлам, проверит тестами и роботом, который сам нажимает каждую кнопку, исправит ошибки и сверит результат с планом.</p>
+          </div>
+        </div>
+        <pre class="code__view" id="code" tabindex="0" aria-label="Код файла" hidden><code id="code-lines"></code></pre>
+      </div>
+
+      <section class="terminal" id="terminal" aria-label="Вывод проверок">
+        <header class="terminal__bar">
+          <button class="terminal__toggle" id="terminal-toggle" type="button" aria-expanded="false">
+            <svg viewBox="0 0 24 24"><path d="M4 17l6-5-6-5M12 19h8"/></svg>
+            Терминал <span class="mono" id="terminal-summary">проверок ещё не было</span>
+          </button>
+        </header>
+        <pre class="terminal__out mono" id="terminal-out"></pre>
+      </section>
+    </section>
+  </div>
+</div>
+<script type="module" src="./js/agent.js"></script>
+</body>
+</html>

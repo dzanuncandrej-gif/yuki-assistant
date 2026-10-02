@@ -47,10 +47,10 @@ SYSTEM_PROMPT = """Ты — Юки: живая девушка-компаньон
 
 Про экран отдельно — это твои глаза, и работают они так:
 5a. Прежде чем что-то нажимать, вызови read_screen. Он мгновенный и показывает настоящее состояние: окно, кнопки, текст, сообщение об ошибке.
-5b. Нажимай через click_control по названию кнопки. Он сам знает её координаты. Не считай координаты в уме и не зови mouse_click по выдуманным числам — промахнёшься по чужой кнопке.
+5b. Нажимай через click_control по названию кнопки. Он сам знает её координаты, а если кнопки нет в дереве окна (игра, браузер, холст) — найдёт надпись распознаванием текста. Не считай координаты в уме и не зови mouse_click по выдуманным числам — промахнёшься по чужой кнопке.
 5c. Нет нужной кнопки в списке — значит её на экране нет. Открой нужное окно или вкладку, а не угадывай.
 5d. После действия проверяй результат: read_screen или wait_for_control. «Нажала» без проверки — это не выполненная задача.
-5e. look_at_screen зови только для картинок, игр, графиков и того, чего нет в тексте окна. Он медленный и занимает видеопамять. Что написано в окне — читает read_window_text, и читает точно.
+5e. read_screen и read_window_text уже включают распознанный текст всего экрана. look_at_screen зови только для картинок, игр, графиков и того, чего нет в тексте окна. Он медленный и занимает видеопамять. Что написано в окне — читает read_window_text, и читает точно.
 6. Когда всё сделано, скажи об этом живой разговорной фразой на русском: одно-два предложения, до тридцати слов, без markdown и ссылок — ответ читается вслух. «Открыла, держи» вместо «Приложение успешно запущено». Если просят перечислить — не больше трёх пунктов, каждый в полстроки.
 7. Держи контекст разговора: «а теперь закрой его» относится к тому, о чём только что шла речь.
 8. Никогда не сочиняй реплики за человека и не проси его что-то сделать с компьютером. Приказы отдаёт он, выполняешь их ты. Строки вида «а теперь закрой окно» в твоём ответе появиться не могут — иначе на следующем шаге ты примешь за приказ собственную выдумку.
@@ -105,6 +105,43 @@ CHAT_PROMPT = """Ты — Юки: живая девушка-компаньон, 
 """
 
 
+# Вопрос про экран. Данные экрана собраны без модели зрения: структура окна и OCR.
+SCREEN_PROMPT = """Ты — Юки и видишь экран человека. Ниже точные данные экрана: активное окно, открытые диалоги, кнопки и распознанный текст. OCR иногда путает похожие буквы (0 и O, l и I, латиницу и кириллицу) — понимай по смыслу.
+
+Как отвечать:
+1. {SPEECH_RULE} На «ты», живо, одно-три предложения — ответ звучит вслух.
+2. Сначала суть: что за приложение и что происходит, или прямой ответ на вопрос.
+3. Видишь ошибку — назови её причину своими словами и конкретный следующий шаг, как исправить.
+4. Спрашивают про текст — перескажи главное, а не всё подряд. Цифры и имена бери только из данных.
+5. Если приложен снимок — опиши и то, что видно на нём (фото, видео, игра, график), сверяясь с распознанным текстом. Чего нет ни на снимке, ни в данных, того не выдумывай.
+6. Без markdown, списков и эмодзи."""
+
+
+# Развёрнутый ответ: человек читает его на экране, вслух звучит только первая строка.
+EXPERT_PROMPT = """Ты — Юки, сильный эксперт и живой собеседник. Сейчас нужен развёрнутый профессиональный ответ: человек прочитает его на экране.
+
+Формат — строго:
+1. Первая строка — суть в одно-два коротких разговорных предложения на «ты», без markdown, без списков. Она звучит вслух, поэтому никаких символов разметки, кода и ссылок. {SPEECH_RULE}
+2. Пустая строка.
+3. Подробный разбор в markdown: заголовки «##», списки, **выделение** главного, блоки кода с указанием языка, таблица — если что-то сравниваешь.
+
+Как пишет эксперт:
+— Точно и по делу: конкретные шаги, цифры, названия, примеры. Ни одной общей фразы вроде «это важная тема» или «существует много подходов».
+— Структура от главного к деталям: сначала ответ, потом почему, потом как сделать, потом тонкости и типичные ошибки.
+— Код — рабочий и законченный, с короткими комментариями там, где неочевидно.
+— Вопрос неоднозначен — назови своё допущение одной строкой и отвечай.
+— Не уверена в факте (свежая цена, версия, дата) — так и помечай: «проверь актуальность».
+— Без приветствий, без «отличный вопрос», без пересказа вопроса и без эмодзи.
+— Объём по делу: простой вопрос — полэкрана, сложный — сколько нужно, но без воды."""
+
+
+def _persona(prompt: str) -> str:
+    """Инструкция с правилом языка и родом ассистента под текущий голос."""
+    from . import language, persona
+
+    return persona.adapt(prompt.replace("{SPEECH_RULE}", language.speech_rule()))
+
+
 class Agent:
     """Держит историю диалога и гоняет цикл инструментов через Ollama."""
 
@@ -112,6 +149,7 @@ class Agent:
         self._cfg = dict(cfg)
         self._history: list[dict[str, Any]] = []
         self._lock = threading.Lock()
+        self._revive_lock = threading.Lock()
         self._online: bool | None = None
         self._model: str | None = None
         self._capabilities: tuple[str, ...] = ()
@@ -185,7 +223,10 @@ class Agent:
                     "stream": False,
                     "keep_alive": _KEEP_ALIVE,
                     "messages": [{"role": "user", "content": "ок"}],
-                    "options": {"num_predict": 1},
+                    # тот же контекст, что у настоящих запросов: иначе первый вопрос
+                    # после запуска ждёт повторную загрузку модели (~5 с)
+                    "options": {"num_predict": 1, "num_ctx": int(self._cfg.get("num_ctx", 8192))},
+                    "think": False,
                 },
                 timeout=300,
             ).raise_for_status()
@@ -221,9 +262,8 @@ class Agent:
         только путь с инструментами. Из-за этого в обычном разговоре — там, где
         память нужнее всего — она общалась как с незнакомцем.
         """
-        from . import language
 
-        parts = [CHAT_PROMPT.replace("{SPEECH_RULE}", language.speech_rule()),
+        parts = [_persona(CHAT_PROMPT),
                  f"Контекст: {self._context(question)}"]
         if extra:
             parts.append(extra)
@@ -327,9 +367,8 @@ class Agent:
         )
         if not digest.strip():
             return
-        from . import language
 
-        system = f"{WEB_PROMPT.replace('{SPEECH_RULE}', language.speech_rule())}\n\nКонтекст: {self._context(question)}"
+        system = f"{_persona(WEB_PROMPT)}\n\nКонтекст: {self._context(question)}"
         if context:
             system += f"\n{context}"
         messages = [
@@ -349,6 +388,151 @@ class Agent:
         answer = "".join(collected).strip()
         if answer:
             self._remember(question, answer)
+
+    @property
+    def sees(self) -> bool:
+        """Основная модель понимает картинки — экран можно показать ей целиком."""
+        return "vision" in self._capabilities
+
+    def screen_stream(self, question: str, screen: str, image: bytes | None = None) -> Iterator[str]:
+        """Ответ про экран основной моделью по тексту и структуре экрана.
+
+        Раньше такие вопросы шли в модель зрения на три миллиарда параметров: она
+        выталкивала основную из видеопамяти, и человек ждал две перезагрузки
+        весов. Здесь отвечает уже загруженная восьмимиллиардная модель — быстрее
+        и заметно умнее, а экран она видит через точный текст, а не догадки.
+        """
+
+        system = (f"{_persona(SCREEN_PROMPT)}"
+                  f"\n\nКонтекст: {self._context(question)}")
+        request: dict[str, Any] = {"role": "user", "content": f"{question}\n\nЭкран сейчас:\n{screen}"}
+        if image is not None and self.sees:
+            import base64
+
+            # один запрос — и картинка, и точный текст экрана: модель видит фото,
+            # игру или график и при этом не путает буквы в мелких надписях
+            request["images"] = [base64.b64encode(image).decode("ascii")]
+            request["content"] += "\n\nК вопросу приложен снимок экрана."
+        messages = [{"role": "system", "content": system}, *self._history[-4:], request]
+        collected: list[str] = []
+        try:
+            for piece in self._chat_stream(messages, None, num_predict=320, think=False, temperature=0.3):
+                collected.append(piece)
+                yield piece
+        except requests.RequestException:
+            if not collected:
+                return
+        answer = "".join(collected).strip()
+        if answer:
+            self._remember(question, answer)
+
+    def retell_stream(self, prompt: str, question: str, facts: str, num_predict: int = 260) -> Iterator[str]:
+        """Пересказ готовых данных голосом: брифинг, входящие. Инструменты не нужны."""
+        messages = [
+            {"role": "system", "content": f"{_persona(prompt)}\n\nКонтекст: {self._context(question)}"},
+            {"role": "user", "content": f"{question}\n\nДанные:\n{facts}"},
+        ]
+        collected: list[str] = []
+        try:
+            for piece in self._chat_stream(messages, None, num_predict=num_predict, think=False, temperature=0.5):
+                collected.append(piece)
+                yield piece
+        except requests.RequestException:
+            if not collected:
+                return
+        answer = "".join(collected).strip()
+        if answer:
+            self._remember(question, answer)
+
+    def code_help_stream(self, question: str, screen: str, image: bytes | None = None) -> Iterator[str]:
+        """Разбор ошибки в коде на экране: первая строка — суть для голоса, дальше markdown."""
+        from . import codehelp
+
+        request: dict[str, Any] = {"role": "user", "content": f"{question}\n\nОкно с ошибкой:\n{screen}"}
+        if image is not None and self.sees:
+            import base64
+
+            request["images"] = [base64.b64encode(image).decode("ascii")]
+        messages = [{"role": "system", "content": _persona(codehelp.PROMPT)}, request]
+        # Без размышления модель уверенно выдумывает причину («лишний пробел»), с ним
+        # находит настоящую. Изредка размышление съедает весь лимит и ответа нет —
+        # тогда отвечаем быстрым режимом, а не молчим.
+        said = False
+        for piece in self._chat_stream(messages, None, num_predict=4200, think=True, temperature=0.2):
+            said = True
+            yield piece
+        if not said:
+            yield from self._chat_stream(messages, None, num_predict=1100, think=False, temperature=0.2)
+
+    def generate(self, system: str, user: str, num_predict: int = 3000,
+                 think: bool = False, temperature: float = 0.2) -> Iterator[str]:
+        """Длинная генерация без истории диалога — для агента, который пишет код.
+
+        С `think` модель сначала рассуждает (это не попадает в ответ): дольше,
+        но ошибки в коде она так находит заметно чаще.
+        """
+        messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
+        for piece, _ in self._chat_stream_raw(messages, None, num_predict, None, think, temperature,
+                                              heartbeat=True):
+            yield piece
+
+    def generate_json(self, system: str, user: str, num_predict: int = 500, think: bool = False) -> str:
+        """Ответ строго в JSON (план проекта, ревью). С `think` — после размышления."""
+        messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
+        payload = self._payload(messages, None, num_predict, None, think, 0.2)
+        payload["format"] = "json"
+        content = str(self._post(payload).get("content") or "")
+        if not content.strip() and think:
+            # размышление съело весь лимит — отвечаем без него, но отвечаем
+            payload = self._payload(messages, None, min(num_predict, 900), None, False, 0.2)
+            payload["format"] = "json"
+            content = str(self._post(payload).get("content") or "")
+        return content
+
+    def reply_options(self, chat: str, image: bytes | None = None) -> str:
+        """Три варианта ответа собеседнику по переписке на экране (сырой JSON-текст)."""
+        from . import replies
+
+        request: dict[str, Any] = {"role": "user", "content": chat}
+        if image is not None and self.sees:
+            import base64
+
+            request["images"] = [base64.b64encode(image).decode("ascii")]
+        messages = [{"role": "system", "content": _persona(replies.PROMPT)}, request]
+        payload = self._payload(messages, None, 420, None, False, 0.7)
+        payload["format"] = "json"
+        message = self._post(payload)
+        return str(message.get("content") or "")
+
+    def expert_stream(self, question: str, context: str = "") -> Iterator[str]:
+        """Развёрнутый ответ эксперта в markdown, по мере генерации.
+
+        Первая строка — суть для голоса, дальше разбор для экрана; делит их
+        вызывающий. Рассуждение модели (think) по умолчанию выключено: с ним
+        ответ начинался через десяток секунд. Включается `brain.deep_think`.
+        """
+
+        system = (f"{_persona(EXPERT_PROMPT)}"
+                  f"\n\nКонтекст: {self._context(question)}")
+        if context:
+            system += f"\n{context}"
+        messages = [{"role": "system", "content": system}, *self._history[-4:],
+                    {"role": "user", "content": question}]
+        think = bool(self._cfg.get("deep_think", False))
+        budget = int(self._cfg.get("deep_num_predict", 2000 if think else 1100))
+        collected: list[str] = []
+        try:
+            for piece in self._chat_stream(messages, None, num_predict=budget, think=think,
+                                           temperature=float(self._cfg.get("deep_temperature", 0.4))):
+                collected.append(piece)
+                yield piece
+        except requests.RequestException:
+            if not collected:
+                return
+        answer = "".join(collected).strip()
+        if answer:
+            # в историю — сжато: полный разбор съел бы окно контекста за пару вопросов
+            self._remember(question, answer[:1200])
 
     def _tool_temperature(self) -> float:
         """Температура для выбора инструментов и фактов.
@@ -397,9 +581,8 @@ class Agent:
             )
             return
 
-        from . import language
 
-        system_prompt = SYSTEM_PROMPT.replace("{SPEECH_RULE}", language.speech_rule())
+        system_prompt = _persona(SYSTEM_PROMPT)
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": f"{system_prompt}\n\nКонтекст: {self._context(text)}"},
             *self._history,
@@ -693,22 +876,16 @@ class Agent:
         model: str | None = None,
         think: bool | None = None,
         temperature: float | None = None,
+        heartbeat: bool = False,
     ) -> Iterator[tuple[str, list[Any]]]:
-        """Поток Ollama как пары (кусок текста, вызовы инструментов из этого кадра)."""
+        """Поток Ollama как пары (кусок текста, вызовы инструментов из этого кадра).
+
+        С `heartbeat` отдаёт пустой кусок и на кадрах размышления: так долгую
+        генерацию агента можно прервать, даже пока модель ещё думает.
+        """
         payload = self._payload(messages, tools_spec, num_predict, model, think, temperature)
         payload["stream"] = True
-        response = self._session.post(
-            f"{self.url}/api/chat", json=payload, stream=True,
-            timeout=float(self._cfg.get("timeout_s", 120)),
-        )
-        if response.status_code == 400 and "think" in payload:
-            response.close()
-            payload.pop("think", None)
-            response = self._session.post(
-                f"{self.url}/api/chat", json=payload, stream=True,
-                timeout=float(self._cfg.get("timeout_s", 120)),
-            )
-        response.raise_for_status()
+        response = self._send(payload, stream=True)
         try:
             for line in response.iter_lines(decode_unicode=False):
                 if not line:
@@ -723,6 +900,8 @@ class Agent:
                     piece = str(message.get("content") or "")
                     if piece or raw_calls:
                         yield piece, list(raw_calls)
+                    elif heartbeat and message.get("thinking"):
+                        yield "", []
                 if data.get("done"):
                     break
         finally:
@@ -756,18 +935,50 @@ class Agent:
             payload["think"] = wanted
         return payload
 
+    def _send(self, payload: dict[str, Any], stream: bool = False) -> requests.Response:
+        """POST в Ollama, который переживает её падение.
+
+        Ollama иногда закрывается сама (или её закрыли из трея) — тогда Windows
+        отвечает «удалённый хост принудительно разорвал подключение». Вместо этой
+        простыни Юки поднимает Ollama и повторяет запрос один раз.
+        """
+        timeout = float(self._cfg.get("timeout_s", 120))
+        for attempt in (1, 2):
+            try:
+                response = self._session.post(f"{self.url}/api/chat", json=payload, stream=stream,
+                                              timeout=timeout)
+                # модель без поддержки размышления отвечает на это поле отказом —
+                # повторяем без него, вместо того чтобы остаться совсем без ответа
+                if response.status_code == 400 and "think" in payload:
+                    response.close()
+                    payload.pop("think", None)
+                    response = self._session.post(f"{self.url}/api/chat", json=payload, stream=stream,
+                                                  timeout=timeout)
+                response.raise_for_status()
+                return response
+            except requests.ConnectionError:
+                if attempt == 2 or not self.revive():
+                    raise
+        raise requests.ConnectionError("Ollama не отвечает")
+
+    def revive(self) -> bool:
+        """Поднимает упавшую Ollama. True — сервер снова отвечает."""
+        from . import bus, ollama_guard
+
+        with self._revive_lock:
+            try:
+                if self._session.get(f"{self.url}/api/version", timeout=2).ok:
+                    return True  # сервер жив — оборвалось одно соединение, просто повторим
+            except requests.RequestException:
+                pass
+            bus.bus.log("system", "Ollama не отвечала — запускаю её заново…")
+            alive = ollama_guard.restart(self.url, timeout_s=40.0)
+            bus.bus.log("system" if alive else "error",
+                        "Ollama снова работает." if alive else "Ollama не запускается — открой её вручную.")
+            return alive
+
     def _post(self, payload: dict[str, Any]) -> dict[str, Any]:
-        response = self._session.post(
-            f"{self.url}/api/chat", json=payload, timeout=float(self._cfg.get("timeout_s", 120))
-        )
-        # модель без поддержки размышления отвечает на это поле отказом —
-        # повторяем без него, вместо того чтобы остаться совсем без ответа
-        if response.status_code == 400 and "think" in payload:
-            payload.pop("think", None)
-            response = self._session.post(
-                f"{self.url}/api/chat", json=payload, timeout=float(self._cfg.get("timeout_s", 120))
-            )
-        response.raise_for_status()
+        response = self._send(payload)
         data = response.json()
         message = data.get("message")
         return message if isinstance(message, Mapping) else {}

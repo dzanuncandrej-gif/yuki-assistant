@@ -124,8 +124,14 @@ class Shell(QObject):
             extras={
                 "say": self.voice.say,
                 "dictate_message": self._dictate_message,
+                "code_start": self._code_start,
+                "code_stop": lambda: self._assistant.coder.cancel(),
             },
         )
+
+    def _code_start(self, task: str, existing=None, parent=None) -> None:
+        reply = self._assistant.start_code(task, existing=existing, parent=parent)
+        bus.bus.log("system", reply)
 
     def _dictate_message(self, deliver) -> None:
         """Продиктовать текст сообщения голосом.

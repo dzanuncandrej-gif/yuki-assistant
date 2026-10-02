@@ -20,7 +20,7 @@ class CompanionVoice:
 
     def __init__(self, assistant: Any, settings: Mapping[str, Any] | None = None) -> None:
         self._assistant = assistant
-        self._key = str((settings or {}).get("voice", "mira"))
+        self._key = str((settings or {}).get("voice", "yuki"))
         self._enabled = bool((settings or {}).get("enabled", True))
         self._on_speak: Callable[[str], None] | None = None
 
@@ -58,12 +58,13 @@ class CompanionVoice:
     # ---------------------------------------------------------------- речь
 
     def set_enabled(self, enabled: bool) -> None:
-        """Выключенный компаньон возвращает ассистенту его собственный голос."""
+        """Показ и скрытие компаньона голос больше не трогают.
+
+        Раньше показ панели ставил женский голос, а скрытие — мужской, и каждое
+        переключение сохранялось в настройки: голос прыгал посреди разговора.
+        Голос один — тот, что выбран в меню «Голос» или командой «включи Реми».
+        """
         self._enabled = enabled
-        target = self._key if enabled else voices.DEFAULT
-        threading.Thread(
-            target=self._assistant.set_voice, args=(target,), name="companion-voice-mode", daemon=True
-        ).start()
 
     def say(self, text: str) -> None:
         """Произносит реплику от лица персонажа, не блокируя интерфейс."""

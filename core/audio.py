@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import queue
 import threading
+import time
 import wave
 from collections import deque
 from collections.abc import Callable, Iterator, Mapping
@@ -40,6 +41,53 @@ def resolve_device(value: int | str | None, kind: str) -> int | str | None:
         name = str(device["name"]).lower()
         if device[key] > 0 and ("mapper" in name or "переназначение" in name):
             return index
+    return None
+
+
+# Блок в 40 мс уходит в живую звуковую карту за доли секунды. Если запись висит
+# дольше, устройство не играет: Bluetooth-наушники уснули или отключены, а
+# Windows всё ещё считает их устройством по умолчанию. Тогда звук идёт туда,
+# где его слышно, вместо того чтобы молча вешать всю Юки.
+_STALL_S = 0.8
+_SKIP_OUTPUT = ("steam streaming", "virtual", "voicemeeter", "cable", "mapper", "переназначение")
+_dead_outputs: set[str] = set()
+
+
+def _output_name(device: int | str | None) -> str:
+    try:
+        return str(sd.query_devices(device, "output")["name"])
+    except Exception:
+        return ""
+
+
+def fallback_output(stalled: int | str | None, rate: int) -> int | None:
+    """Первое устройство вывода, которое реально принимает звук. Колонки — в приоритете."""
+    _dead_outputs.add(_output_name(stalled).lower())
+    try:
+        devices = sd.query_devices()
+        default_api = sd.query_devices(kind="output")["hostapi"]
+    except Exception:
+        return None
+    candidates = [
+        index for index, device in enumerate(devices)
+        if device["max_output_channels"] > 0 and device["hostapi"] == default_api
+        and not any(word in str(device["name"]).lower() for word in _SKIP_OUTPUT)
+        and str(device["name"]).lower() not in _dead_outputs
+    ]
+    candidates.sort(key=lambda index: 0 if any(word in str(devices[index]["name"]).lower()
+                                               for word in ("динамик", "speaker", "realtek")) else 1)
+    silence = np.zeros(int(rate * 0.12), dtype=np.float32)
+    for index in candidates:
+        try:
+            with sd.OutputStream(samplerate=rate, channels=1, dtype="float32", device=index) as stream:
+                started = time.monotonic()
+                stream.write(silence)
+                stream.write(silence)
+                if time.monotonic() - started < _STALL_S:
+                    return index
+        except Exception:
+            continue
+        _dead_outputs.add(str(devices[index]["name"]).lower())
     return None
 
 
@@ -100,6 +148,39 @@ def working_input(preferred: int | str | None = None, seconds: float = 0.35) -> 
     scored.sort(reverse=True)
     level, index, name = scored[0]
     return index, f"{name} (уровень {level:.4f})"
+
+
+
+# Сколько ждать ответа звуковой системы при выборе микрофона. Если драйвер Windows
+# завис, PortAudio не возвращается вовсе — и раньше вместе с ним намертво висел весь
+# запуск Юки: окно так и не появлялось. Теперь выбор идёт в отдельном потоке.
+_PROBE_TIMEOUT_S = 6.0
+AUDIO_STUCK_NOTE = ("звуковая система Windows не отвечает — перезапусти службу «Windows Audio» "
+                    "или компьютер; текстом Юки работает и так")
+
+
+def _pick_input(cfg: dict) -> tuple[int | str | None, str]:
+    """Устройство ввода и пояснение для журнала, но не дольше _PROBE_TIMEOUT_S."""
+    import threading
+
+    result: list[tuple[int | str | None, str]] = []
+
+    def pick() -> None:
+        try:
+            device = resolve_device(cfg.get("input_device"), "input")
+            note = ""
+            if bool(cfg.get("auto_input", True)):
+                device, note = working_input(cfg.get("input_device"))
+        except Exception as err:  # сломанный драйвер кидает PortAudioError прямо из списка устройств
+            device, note = cfg.get("input_device"), f"{AUDIO_STUCK_NOTE} ({str(err)[:80]})"
+        result.append((device, note))
+
+    worker = threading.Thread(target=pick, name="jarvis-audio-probe", daemon=True)
+    worker.start()
+    worker.join(_PROBE_TIMEOUT_S)
+    if result:
+        return result[0]
+    return cfg.get("input_device"), AUDIO_STUCK_NOTE
 
 
 def _device_name(device: int | str | None) -> str:
@@ -205,7 +286,11 @@ class Player:
             if should_stop is not None and should_stop():
                 return False
             block = data[start : start + self.block]
+            began = time.monotonic()
             stream.write(block)
+            if time.monotonic() - began > _STALL_S and not self._switch_device():
+                return False
+            stream = self._stream or stream
             # мимика — украшение, речь — нет: сбой в разборе рта не должен
             # обрывать звук. Но и молчать о нём нельзя — иначе губы «просто
             # перестают работать», и причину потом не найти
@@ -220,6 +305,26 @@ class Player:
                 bus.bus.log("error", f"Мимика отключена до конца реплики: {err!r}")
                 on_level = None
                 on_viseme = None
+        return True
+
+    def _switch_device(self) -> bool:
+        """Устройство не играет — переходим на работающее. False — играть некуда."""
+        from . import bus
+
+        stalled = self.device
+        name = _output_name(stalled) or "устройство по умолчанию"
+        try:
+            self.close(drain=False)
+        except Exception:
+            self._stream = None
+        replacement = fallback_output(stalled, self.sample_rate)
+        if replacement is None:
+            bus.bus.log("error", f"Звук: «{name}» не играет, и другого устройства вывода нет.")
+            return False
+        self.device = replacement
+        self.open()
+        bus.bus.log("error", f"Звук: «{name}» не отвечает (наушники выключены?) — "
+                             f"переключила на «{_output_name(replacement)}».")
         return True
 
     def flush(self) -> None:
@@ -290,11 +395,7 @@ class Microphone:
         # во время речи ассистента порог поднимается: иначе он слышит сам себя
         self.barge_in_scale = float(cfg.get("barge_in_scale", 3.5))
         self.barge_in_blocks = max(1, int(cfg.get("barge_in_ms", 260) / cfg["block_ms"]))
-        self.device = resolve_device(cfg.get("input_device"), "input")
-        self.device_note = ""
-        if bool(cfg.get("auto_input", True)):
-            chosen, note = working_input(cfg.get("input_device"))
-            self.device, self.device_note = chosen, note
+        self.device, self.device_note = _pick_input(cfg)
         self.on_level = on_level
         self._queue: queue.Queue[np.ndarray] = queue.Queue()
         self._threshold = self.threshold_floor

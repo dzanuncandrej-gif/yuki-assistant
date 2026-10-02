@@ -868,6 +868,18 @@ def click(query: str, role: str | None = None, double: bool = False) -> str:
 
     target = find(query, role=role, fresh=True, only_clickable=True)
     if target is None:
+        # Дерево интерфейса пустое у игр, холстов и части Electron-окон. Тогда
+        # ищем надпись распознаванием текста: у OCR точные прямоугольники строк,
+        # это не догадка модели зрения о координатах.
+        spot = _ocr_target(query)
+        if spot is not None:
+            text, (x, y) = spot
+            scale = _click_scale()
+            if scale != 1.0:
+                x, y = round(x * scale), round(y * scale)
+            automation.mouse_click(x, y, clicks=2 if double else 1)
+            invalidate()
+            return f"нажала надпись «{text}» (найдена распознаванием текста) в точке {x},{y}"
         near = ", ".join(item.name for item in clickables()[:10]) or "ничего не видно"
         raise ScreenError(f"не вижу кнопки «{query}». Сейчас доступно: {near}")
     if not target.enabled:
@@ -877,6 +889,30 @@ def click(query: str, role: str | None = None, double: bool = False) -> str:
     automation.mouse_click(x, y, clicks=2 if double else 1)
     invalidate()  # экран изменился — всё, что мы о нём знали, устарело
     return f"нажала «{target.name}» ({target.role}) в точке {x},{y}"
+
+
+def _ocr_target(query: str) -> tuple[str, tuple[int, int]] | None:
+    """Надпись на экране по распознанному тексту: (текст, центр) или None."""
+    try:
+        from . import ocr
+
+        reading = ocr.read_screen()
+    except Exception:
+        return None
+    line = ocr.find(query, reading)
+    if line is None:
+        return None
+    return line.text, line.center
+
+
+def ocr_text(limit: int = 2400) -> str:
+    """Текст всего экрана распознаванием — для окон, где дерево интерфейса молчит."""
+    try:
+        from . import ocr
+
+        return ocr.read_screen().compact(limit)
+    except Exception:
+        return ""
 
 
 def focused_text() -> str | None:

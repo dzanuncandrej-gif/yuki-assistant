@@ -27,7 +27,9 @@ from PySide6.QtWidgets import (
 
 from core import bus, i18n
 
+from . import webpanel
 from .bridge import Bridge
+from .call import CallWindow
 from .hotkey import GlobalHotkey
 from .menu.control_menu import ControlMenu
 from .theme import STATE_LABELS
@@ -64,17 +66,36 @@ class MainWindow(ControlMenu):
         # виджеты собираются до super(): обращаться к self раньше инициализации
         # QWidget нельзя — компоновка тогда не применяется и страница разъезжается
         log, meter, composer, voices, dialog = _build_dialog()
+        # Командный центр на WebGL, если движок есть; прежние виджеты остаются
+        # запасным вариантом и живут невидимыми — на них завязаны трей и самопроверка.
+        hub = None
+        legacy = dialog  # без ссылки Qt удалит страницу вместе с виджетами трея
+        pages: dict[str, QWidget] = {}
+        if webpanel.ENGINE_READY:
+            from .agent_view import AgentView
+            from .hub import HubView
+            from .music_view import MusicView
+
+            hub = HubView(assistant, bridge)
+            dialog = hub
+            pages = {"agent": AgentView(assistant), "playlist": MusicView()}
 
         super().__init__(
             shell.store,
             shell.actions(),
             extra=(("dialog", i18n.t("◆  ДИАЛОГ"), i18n.t("Диалог"),
                     i18n.t("Переписка с Юки, микрофон и уровень голоса"), dialog),),
+            on_call=lambda: self.start_call(),
+            pages=pages,
         )
         self._assistant = assistant
         self._bridge = bridge
         self._shell = shell
         self._quitting = False
+        self._call: CallWindow | None = None
+        self._onboarding = None
+        self.hub = hub
+        self._legacy_dialog = legacy
         self.log, self.meter, self.composer, self.voices = log, meter, composer, voices
         self.setWindowTitle("Юки")
 
@@ -104,12 +125,35 @@ class MainWindow(ControlMenu):
         self.hotkey.triggered.connect(self.toggle_visibility)
         self.hotkey.start()
 
+        # командная строка поверх всех окон: Ctrl+Alt+Пробел
+        from .palette import CommandPalette
+
+        self.palette = CommandPalette(self._assistant)
+        self.palette_hotkey = GlobalHotkey("<ctrl>+<alt>+<space>")
+        self.palette_hotkey.triggered.connect(self.palette.toggle)
+        self.palette_hotkey.start()
+
+        if self.hub is not None:
+            self.hub.call_requested.connect(self.start_call)
+            self.hub.mute_changed.connect(self._sync_mute)
+        self._bridge.event.connect(self._on_ui_event)
+
+        # живая карточка статуса в боковой панели
+        self._bridge.state_changed.connect(self._on_status_state)
+        self._bridge.level_changed.connect(self.status_card.set_level)
+        self._status_timer = QTimer(self)
+        self._status_timer.timeout.connect(self._refresh_model)
+        self._status_timer.start(2500)
+        QTimer.singleShot(400, self._refresh_model)
+
     def _install_window_shortcuts(self) -> None:
         QShortcut(QKeySequence("Ctrl+L"), self, activated=self.composer.input.setFocus)
         QShortcut(QKeySequence("Ctrl+Space"), self, activated=self._assistant.interrupt)
         QShortcut(QKeySequence("Ctrl+J"), self, activated=self.toggle_companion)
         QShortcut(QKeySequence("Ctrl+R"), self, activated=self._assistant.reset)
         QShortcut(QKeySequence("Ctrl+Q"), self, activated=self.quit)
+        QShortcut(QKeySequence("Ctrl+D"), self, activated=self.start_call)
+        QShortcut(QKeySequence("F1"), self, activated=self.start_onboarding)
 
     def _build_tray(self) -> None:
         self.tray = QSystemTrayIcon(QIcon(make_tray_icon()), self)
@@ -121,6 +165,10 @@ class MainWindow(ControlMenu):
         self._action_mic = QAction(i18n.t("Выключить микрофон"), self)
         self._action_mic.setCheckable(True)
         self._action_mic.toggled.connect(self._on_tray_mic)
+        action_call = QAction(i18n.t("Видеосвязь (Ctrl+D)"), self)
+        action_call.triggered.connect(self.start_call)
+        action_learn = QAction(i18n.t("Обучение (F1)"), self)
+        action_learn.triggered.connect(self.start_onboarding)
         action_companion = QAction(i18n.t("Персонаж на столе (Ctrl+J)"), self)
         action_companion.triggered.connect(self.toggle_companion)
         action_silence = QAction(i18n.t("Замолчать (Ctrl+Space)"), self)
@@ -131,6 +179,8 @@ class MainWindow(ControlMenu):
         action_quit.triggered.connect(self.quit)
 
         menu.addAction(self._action_show)
+        menu.addAction(action_call)
+        menu.addAction(action_learn)
         menu.addAction(action_companion)
         menu.addAction(self._action_mic)
         menu.addMenu(self._build_voice_menu(menu))
@@ -188,6 +238,87 @@ class MainWindow(ControlMenu):
         if reason == QSystemTrayIcon.ActivationReason.Trigger:
             self.toggle_visibility()
 
+    # ---------------------------------------------------------------- звонок
+
+    def start_call(self) -> None:
+        """Открывает видеосвязь; если звонок уже идёт — просто поднимает его окно."""
+        if self._call is not None:
+            self._call.raise_()
+            self._call.activateWindow()
+            return
+        if not webpanel.ENGINE_READY:
+            self.log.add_message("error", i18n.t("Для видеосвязи нужен QtWebEngine (pip install PySide6-Addons)."))
+            return
+        muted = bool(getattr(self._assistant, "_muted", None) and self._assistant._muted.is_set())
+        call = CallWindow(self._assistant, self._bridge, muted=muted)
+        call.ended.connect(self._on_call_ended)
+        call.mute_changed.connect(self._sync_mute)
+        self._call = call
+        screen = self.screen() or QApplication.primaryScreen()
+        call.start(screen.geometry())
+
+    def start_onboarding(self) -> None:
+        """Знакомство с Юки: проверка системы, голос, имя и обучение на практике."""
+        if not webpanel.ENGINE_READY:
+            return
+        if self._onboarding is not None:
+            self._onboarding.raise_()
+            self._onboarding.activateWindow()
+            return
+        from .onboarding import OnboardingWindow
+
+        window = OnboardingWindow(self._assistant, self._bridge, self._store)
+        window.closed.connect(lambda: setattr(self, "_onboarding", None))
+        window.call_requested.connect(self.start_call)
+        self._onboarding = window
+        window.open()
+
+    def end_call(self) -> None:
+        if self._call is not None:
+            self._call.hang_up()
+
+    def _on_call_ended(self) -> None:
+        self._call = None
+
+    def _on_ui_event(self, payload: dict) -> None:
+        if payload.get("type") != "ui":
+            return
+        action = payload.get("action")
+        if action == "start_call":
+            self.start_call()
+        elif action == "end_call":
+            self.end_call()
+        elif action == "open_section":
+            self.open_section(str(payload.get("section") or ""))
+            if not self.isVisible() or self.isMinimized():
+                self.show_from_tray()
+        elif action == "quit_later":
+            # новый экземпляр с правами уже запрошен — даём договорить и уходим
+            QTimer.singleShot(4500, self.quit)
+
+    def _on_status_state(self, state: str) -> None:
+        muted = bool(getattr(self._assistant, "_muted", None) and self._assistant._muted.is_set())
+        self.status_card.set_state("muted" if muted and state != "speaking" else state)
+
+    def _refresh_model(self) -> None:
+        agent = getattr(self._assistant, "_agent", None)
+        if agent is None:
+            return
+        online = bool(getattr(agent, "_online", False))
+        name = agent.model or str(getattr(agent, "_cfg", {}).get("model", "—"))
+        self.status_card.set_model(f"{name}  ·  локально", online)
+
+    def _sync_mute(self, muted: bool) -> None:
+        """Микрофон выключили в пульте или в звонке — трей и прежние виджеты в курсе."""
+        self._action_mic.blockSignals(True)
+        self._action_mic.setChecked(muted)
+        self._action_mic.blockSignals(False)
+        self._action_mic.setText(i18n.t("Включить микрофон") if muted else i18n.t("Выключить микрофон"))
+        self.composer.set_muted(muted)
+        if self._shell.panel is not None:
+            self._shell.panel.set_muted(muted)
+        self.status_card.set_state("muted" if muted else "idle")
+
     def toggle_companion(self) -> None:
         self._shell.toggle_panel()
 
@@ -219,8 +350,11 @@ class MainWindow(ControlMenu):
 
     def quit(self) -> None:
         self._quitting = True
+        if self._call is not None:
+            self._call.hang_up()
         self._shell.stop()
         self.hotkey.stop()
+        self.palette_hotkey.stop()
         bus.bus.unsubscribe_callback(self._bridge.publish)
         self._assistant.stop()
         self.tray.hide()

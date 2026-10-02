@@ -7,11 +7,13 @@
 
 from __future__ import annotations
 
+import contextlib
 import random
 import re
 import threading
 import time
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
 
 from . import agent as agent_module
@@ -59,6 +61,19 @@ STOP_WORDS = re.compile(
 
 # после ответа ассистента столько секунд можно говорить без обращения по имени
 FOLLOW_UP_S = 20.0
+
+# Видеосвязь голосом. «Позвони маме» сюда не попадает намеренно: звонить людям
+# Юки не умеет, а открывать вместо этого свой звонок было бы враньём.
+CALL_START = re.compile(
+    r"(видео\s*связ|видео\s*звон|созвон|позвони\s+мне|давай\s+(?:по)?звон|"
+    r"(?:включи|начни|открой)\s+(?:видео)?звонок|video\s*call|call\s+me)",
+    re.IGNORECASE,
+)
+CALL_END = re.compile(
+    r"((?:заверши|закончи|положи|отключи|сбрось|выключи|прекрати)\s+(?:видео)?(?:звонок|связь|видеосвязь|трубку)|"
+    r"^\s*отбой(?![а-яё])|end\s+(?:the\s+)?call|hang\s+up)",
+    re.IGNORECASE,
+)
 
 # рассказ о себе: такие реплики стоит разобрать и запомнить надолго
 PERSONAL = re.compile(
@@ -201,6 +216,35 @@ DIRECTED = re.compile(
 )
 
 
+
+_MD_MARKS = re.compile(r"[*_`#>|]+")
+
+
+def _gist_cut(text: str, final: bool = False) -> int | None:
+    """Где кончается суть: пустая строка, строка разметки или второе предложение."""
+    body = text.lstrip()
+    offset = len(text) - len(body)
+    for marker in ("\n\n", "\n#", "\n-", "\n*", "\n1.", "\n```", "\n|"):
+        index = body.find(marker)
+        if index > 0:
+            return offset + index
+    if len(body) > 260 or final:
+        ends = [m.end() for m in re.finditer(r"[.!?…](?=\s)", body)]
+        if len(ends) >= 2:
+            return offset + ends[1]
+        if ends:
+            return offset + ends[0]
+        return offset + min(len(body), 260) if len(body) > 260 else None
+    return None
+
+
+def _speakable(text: str) -> str:
+    """Суть без markdown и без служебного «Суть:» — её читает синтез."""
+    clean = _MD_MARKS.sub("", text).strip()
+    clean = re.sub(r"^(?:суть|коротко|кратко)\s*[:—-]\s*", "", clean, flags=re.IGNORECASE)
+    return clean
+
+
 class Assistant:
     """Рабочий поток голосового цикла."""
 
@@ -238,6 +282,17 @@ class Assistant:
         # ощущения, что рядом живой собеседник, а не безличный интерфейс
         brain = {**cfg["brain"], "owner": str(cfg.get("account", {}).get("name", "")).strip()}
         self._agent = agent_module.Agent(brain)
+        from .coding import Coder
+
+        self._talking = 0
+        self._talk_lock = threading.Condition()
+        self._quiet_since = time.monotonic()
+        self.coder = Coder(
+            lambda system, user, limit, think: self._agent.generate(system, user, limit, think),
+            lambda system, user, limit, think: self._agent.generate_json(system, user, limit, think),
+            busy_talking=lambda: self._talking > 0,
+            wait_quiet=self._wait_quiet,
+        )
         self._voice: tts.Voice | None = None
         self._mic = audio.Microphone(cfg["audio"], on_level=self._on_input_level)
         self._output_device = cfg["audio"].get("output_device")
@@ -410,6 +465,7 @@ class Assistant:
         )
         if online:
             threading.Thread(target=self._warm_agent, name="jarvis-llm-warmup", daemon=True).start()
+            threading.Thread(target=self._warm_eyes, name="jarvis-ocr-warmup", daemon=True).start()
 
         tools.study_tools.configure(self._agent, str(self._cfg["brain"].get("ollama_url", "")))
 
@@ -419,12 +475,35 @@ class Assistant:
         self.say("Юки на связи.")
         bus.bus.set_state(bus.LISTENING)
 
+    def _warm_eyes(self) -> None:
+        """Распознавание текста экрана поднимается заранее — первый вопрос про экран без паузы."""
+        from . import ocr
+
+        if ocr.warmup():
+            bus.bus.log("system", "Зрение: распознавание текста экрана готово.")
+
+    def _check_gpu(self) -> None:
+        """Ollama на процессоре отвечает минутами — замечаем и чиним сами."""
+        from . import ollama_guard
+
+        url = str(self._cfg["brain"].get("ollama_url", "http://127.0.0.1:11434"))
+        verdict = ollama_guard.check(url)
+        if verdict == "cpu":
+            bus.bus.log("error", "Ollama считает на процессоре, а не на видеокарте — перезапускаю её.")
+            if ollama_guard.restart(url):
+                self._agent.available(refresh=True)
+                self._agent.warmup()
+                bus.bus.log("system", "Ollama перезапущена: модель снова на видеокарте.")
+            else:
+                bus.bus.log("error", "Не смогла перезапустить Ollama — перезапусти её вручную из трея.")
+
     def _warm_agent(self) -> None:
         result = self._agent.warmup()
         if result and result.startswith("прогрев"):
             bus.bus.log("error", f"LLM: {result}")
         elif result:
             bus.bus.log("system", f"LLM: {result} в памяти.")
+            self._check_gpu()
 
     def _rewarm_agent(self) -> None:
         """Возвращает языковую модель в память видеокарты, не мешая разговору.
@@ -507,7 +586,8 @@ class Assistant:
         if self._call_log is not None:
             self._call_log.say("Человек", text)
         turn = self._turn
-        answer = self.say_stream(self._with_filler(self._respond_stream(payload, turn), turn))
+        with self._conversation():
+            answer = self.say_stream(self._with_filler(self._respond_stream(payload, turn), turn))
         bus.bus.log("assistant", answer)
         if self._call_log is not None:
             self._call_log.say("Юки", answer)
@@ -557,6 +637,112 @@ class Assistant:
     @property
     def live(self) -> bool:
         return self._watcher is not None
+
+    def _suggest_reply(self):
+        """Читает переписку, предлагает три ответа: лучший — голосом, все — карточкой."""
+        from . import replies
+
+        bus.bus.log("system", "читаю переписку…")
+        window = replies.target_window()
+        chat, image = replies.read_chat(window)
+        try:
+            who, asked, options = replies.parse_options(self._agent.reply_options(chat, image))
+        except Exception as err:
+            bus.bus.log("error", f"варианты ответа: {err}")
+            yield "Не разобрала переписку. Открой чат так, чтобы последнее сообщение было видно, и спроси ещё раз."
+            return
+        suggestion = replies.remember(options, who, asked, window)
+        bus.bus.publish({"type": "message", "kind": "report", "text": replies.as_report(suggestion)})
+        about = f"{who} спрашивает: {asked}. " if who and asked else (f"Вопрос: {asked}. " if asked else "")
+        yield f"{about}Можно ответить так: «{suggestion.current}». Сказать «вставь» — вставлю, «отправь» — отправлю."
+
+    def _retell(self, question: str, prompt: str, note: str, collect, budget: int):
+        """Собирает данные и пересказывает их голосом; данные — ещё и карточкой в «Диалог»."""
+        bus.bus.log("system", note)
+        facts = collect()
+        card = "## Сводка\n" + facts.replace("\n", "\n\n")
+        bus.bus.publish({"type": "message", "kind": "report", "text": card})
+        said = False
+        for piece in self._agent.retell_stream(prompt, question, facts, budget):
+            said = True
+            yield piece
+        if not said:
+            yield "Сводку собрала, но рассказать не получилось — она в «Диалоге»."
+
+    def _about_playing(self, question: str, kind: str):
+        """Что играет — из медиасессии Windows; об исполнителе или песне — из интернета."""
+        from . import media
+
+        info = media.playing_info()
+        if not info:
+            yield "Сейчас ничего не играет. Включи музыку — и я расскажу об исполнителе."
+            return
+        artist, song = info.get("artist", ""), info.get("song", "")
+        if kind == "what":
+            yield f"Играет «{song}»" + (f" — {artist}." if artist else ".")
+            return
+        if kind == "song" and song:
+            query = f"{artist} {song} песня история".strip()
+            ask = f"Расскажи о песне «{song}»" + (f" исполнителя {artist}" if artist else "")
+        else:
+            subject = artist or song
+            query = f"{subject} исполнитель биография"
+            ask = (f"Кто такой исполнитель {subject}? Начни с главного — кто это и чем известен, "
+                   "потом назови одну-две самые известные песни. Без случайных подробностей.")
+        bus.bus.log("system", f"ищу в интернете: {query}")
+        said = False
+        for piece in self._agent.answer_from_web(ask, query):
+            said = True
+            yield piece
+        if not said:
+            yield f"Сейчас играет {artist or song}, но в интернете ничего толком не нашла."
+
+    def _look_once(self, question: str) -> str:
+        """Вопрос про картинку вне звонка: прямо в модель зрения, без цикла агента.
+
+        Раньше такой вопрос шёл в агента: модель думала, звала инструмент, модель
+        зрения выталкивала её из видеопамяти, Ollama отвечала ошибкой нехватки
+        памяти, шёл повтор — больше минуты. Здесь основная модель выгружается
+        сразу, зрение отвечает за несколько секунд, а основная возвращается фоном.
+        """
+        from . import vision
+
+        url = str(self._cfg["brain"].get("ollama_url", "http://127.0.0.1:11434"))
+        model = vision.available_model(url)
+        if model is None:
+            return "Модель зрения не установлена: выполни ollama pull qwen2.5vl:3b."
+        if not vision.unified(model):
+            vision.free_vram(url, keep=model)
+        prompt = (f"{question.strip()} Отвечай по-русски, коротко и по делу, двумя-тремя "
+                  "предложениями, только о том, что реально видно.")
+        try:
+            answer = vision.describe(vision.grab_screen(), url, model, vision._prompt_for(model, prompt),
+                                     timeout_s=60, num_predict=180, keep_alive="20s")
+        finally:
+            if not vision.unified(model):
+                self._rewarm_agent()
+        return answer.strip()
+
+    def _on_sense(self, sensed) -> None:
+        """Быстрое восприятие: запоминаем сцену и сразу замечаем ошибку на экране."""
+        log = self._call_log
+        if log is not None:
+            log.saw(sensed.caption())
+        if not self._cfg.get("live", {}).get("proactive", True):
+            return
+        evidence = " ".join((sensed.dialog, *sensed.fresh[:6]))
+        if not evidence.strip() or not live.looks_like_trouble(evidence):
+            return
+        now = time.monotonic()
+        if now - self._last_hint < float(self._cfg.get("live", {}).get("hint_gap_s", 90.0)):
+            return
+        if self._speech_lock.locked() or bus.bus.state == bus.THINKING:
+            return
+        self._last_hint = now
+        seen = sensed.dialog or next((line for line in sensed.fresh if live.looks_like_trouble(line)), "")
+        note = f"Вижу на экране: {seen[:160]}. Могу разобраться — спроси, что это."
+        bus.bus.log("assistant", note)
+        threading.Thread(target=self.say, args=(note,), name="jarvis-hint", daemon=True).start()
 
     def _on_scene(self, frame) -> None:
         """Новая сцена на экране: запоминаем и, если видно проблему, помогаем сами."""
@@ -677,6 +863,7 @@ class Assistant:
                 analyze_side=int(settings.get("max_side", 512)),
             )
             self._watcher.on_frame = self._on_scene
+            self._watcher.on_sense = self._on_sense
             self._call_log = live.CallLog()
             self._last_hint = time.monotonic()
             self._watcher.start()
@@ -759,16 +946,115 @@ class Assistant:
         """
         clean = text_utils.normalize(text) or text
 
-        # в видеорежиме вопросы про экран отвечает модель зрения — это быстрее агента;
-        # но не тогда, когда Юки ждёт текст сообщения: тогда фраза — это текст
-        watcher = self._watcher
-        if watcher is not None and not commands.pending_question() and live.wants_screen(clean):
+        # звонок — это окно интерфейса, его открывает и закрывает пульт
+        if CALL_END.search(clean) and self._watcher is not None:
+            bus.bus.publish({"type": "ui", "action": "end_call"})
+            yield "Отключаюсь."
+            return
+        if CALL_START.search(clean) and self._watcher is None:
+            bus.bus.publish({"type": "ui", "action": "start_call"})
+            yield "Соединяю."
+            return
+
+        # «Замени» — готовый текст на место выделенного (после «переведи это», «перепиши вежливее»)
+        from . import selection
+
+        if selection.wants_replace(clean):
             try:
-                bus.bus.log("system", "смотрю на экран…")
-                yield watcher.ask(clean)
-                return
+                yield selection.replace()
+            except selection.SelectionError as err:
+                yield f"{str(err)[:1].upper()}{str(err)[1:]}."
+            return
+
+        # «Вставь», «отправь второй», «другой вариант» — к предложенным ответам
+        from . import replies
+
+        picked = replies.handle_pick(clean)
+        if picked is not None:
+            yield picked
+            return
+
+        # «Что мне ему ответить?» — варианты ответа по переписке на экране
+        if replies.wants_help(clean) and self._agent.available():
+            yield from self._suggest_reply()
+            return
+
+        # «Переведи это», «объясни выделенное», «перепиши вежливее» — в любой программе
+        selection_mode = selection.mode_of(clean)
+        if selection_mode and self._agent.available():
+            yield from self._on_selection(clean, selection_mode)
+            return
+
+        # «Что за ошибка?» — разбор ошибки в коде на экране
+        from . import codehelp, coding
+
+        if codehelp.wants_help(clean) and self._agent.available():
+            yield from self._code_help(clean)
+            return
+
+        # «Напиши калькулятор» — агент-программист работает в фоне, вкладка «Агент» показывает ход
+
+        # «Добавь в калькулятор тёмную тему» — доработка последнего проекта
+        last = coding.history.last()
+        if last and coding.wants_change(clean, str(last.get("title", ""))) and self._agent.available():
+            yield self.start_code(clean, existing=Path(last["root"]))
+            return
+        if coding.wants_code(clean) and self._agent.available():
+            yield self.start_code(clean)
+            return
+
+        # «Доброе утро» — брифинг; «что мне писали?» — сводка Telegram
+        from . import briefing
+
+        if self._agent.available() and briefing.wants_briefing(clean):
+            yield from self._retell(clean, briefing.BRIEFING_PROMPT, "собираю сводку на день…",
+                                    lambda: briefing.gather(with_news=True), 340)
+            return
+        if self._agent.available() and briefing.wants_inbox(clean):
+            yield from self._retell(clean, briefing.INBOX_PROMPT, "читаю список чатов Telegram…",
+                                    briefing.inbox_digest, 240)
+            return
+
+        # «Что скажешь об этом исполнителе?» — смотрим, что играет, и ищем в интернете
+        playing = questions.about_playing(clean)
+        if playing is not None:
+            yield from self._about_playing(clean, playing)
+            return
+
+        # Вопрос про экран. Текст и структуру экрана читаем за треть секунды, а
+        # отвечает основная модель — она уже в видеопамяти и умнее модели зрения.
+        # Модель зрения зовём, только если нужны пиксели: картинка, видео, игра.
+        # Не тогда, когда Юки ждёт текст сообщения: тогда фраза — это текст.
+        watcher = self._watcher
+        about_screen = live.wants_screen(clean) if watcher is not None else live.asks_about_screen(clean)
+        if about_screen and not commands.pending_question():
+            answered = False
+            try:
+                sensed = watcher.digest(fresh=True) if watcher is not None else live.sense_screen()
+                if self._agent.available() and self._agent.sees:
+                    # одна модель на всё: снимок и текст экрана в одном запросе, без перезагрузок
+                    from . import vision
+
+                    bus.bus.log("system", f"смотрю на экран: текст {sensed.spent_ms:.0f} мс + снимок")
+                    for piece in self._agent.screen_stream(clean, sensed.digest(), image=vision.grab_screen()):
+                        answered = True
+                        yield piece
+                elif live.needs_pixels(clean) or sensed.sparse:
+                    bus.bus.log("system", "смотрю на картинку моделью зрения…")
+                    if watcher is not None:
+                        yield watcher.ask(clean)
+                    else:
+                        yield self._look_once(clean)
+                    answered = True
+                elif self._agent.available():
+                    bus.bus.log("system", f"читаю экран: {sensed.spent_ms:.0f} мс")
+                    for piece in self._agent.screen_stream(clean, sensed.digest()):
+                        answered = True
+                        yield piece
             except Exception as err:
                 bus.bus.log("error", f"зрение: {err}")
+            if answered:
+                return
 
         # Быстрый путь выполняет всё, что умеет, а невыполненный хвост просьбы
         # отдаёт агенту. Раньше «открой ютуб и включи видео» с неудачной второй
@@ -796,6 +1082,17 @@ class Assistant:
             bus.bus.log("system", f"прямая команда не удалась ({direct}) — беру инструменты")
 
         note = watcher.context() if watcher is not None else ""
+
+        # Объяснить, разобрать, сравнить, написать код или план — развёрнутый ответ:
+        # суть звучит голосом, разбор ложится на экран карточкой.
+        if questions.deep_request(clean):
+            bus.bus.log("system", "развёрнутый ответ")
+            said = False
+            for piece in self._expert(clean, note):
+                said = True
+                yield piece
+            if said:
+                return
 
         # Вопрос о мире — сразу в поиск, модель только пересказывает найденное.
         # Иначе он попадал в разговорный путь без инструментов, и модель уверенно
@@ -830,6 +1127,90 @@ class Assistant:
             should_stop=lambda: self._cancelled(turn),
         )
 
+    def _on_selection(self, question: str, mode: str):
+        """Выделенный текст: объяснение — голосом и разбором, остальное — готовым текстом и «замени»."""
+        from . import selection
+
+        try:
+            text, hwnd = selection.grab()
+        except selection.SelectionError as err:
+            yield f"{str(err)[:1].upper()}{str(err)[1:]}."
+            return
+        bus.bus.log("system", f"выделено {len(text)} знаков")
+        prompt = agent_module._persona(selection.PROMPTS[mode])
+        if mode == "explain":
+            stream = self._agent.generate(prompt, text, num_predict=900, temperature=0.3)
+            yield from self._expert(question, "", stream=stream)
+            return
+        result = "".join(self._agent.generate(prompt, text, num_predict=1400, temperature=0.3)).strip()
+        if not result:
+            yield "Не получилось — попробуй ещё раз."
+            return
+        selection.remember(hwnd, mode, result)
+        title = selection.SPOKEN.get(mode, "Готово")
+        bus.bus.publish({"type": "message", "kind": "report",
+                         "text": f"## {title}\n{result}\n\n> Скажи «замени» — поставлю на место выделенного."})
+        if len(result) <= 220:
+            yield f"{title}: {result} Сказать «замени» — поставлю на место."
+        else:
+            yield f"{title} готов, он в «Диалоге». Скажи «замени» — поставлю на место выделенного."
+
+    def _code_help(self, question: str):
+        """Ошибка в коде на экране: причина — голосом, разбор — карточкой, исправление — в буфер."""
+        from . import automation, codehelp, replies
+
+        bus.bus.log("system", "читаю ошибку на экране и думаю…")
+        # размышление занимает полминуты — молчать всё это время нельзя
+        yield "Смотрю ошибку, дай подумать. "
+        window = replies.target_window()
+        screen_text, image = replies.read_chat(window)
+        found: list[str] = []
+        stream = self._agent.code_help_stream(question, screen_text.replace("Текст переписки", "Текст окна"), image)
+        yield from self._expert(question, "", stream=stream, on_details=found.append)
+        fix = codehelp.first_code(found[0]) if found else ""
+        if fix:
+            try:
+                automation.set_clipboard(fix)
+                yield " Исправленный код в буфере обмена — вставь через Ctrl+V."
+            except Exception:
+                pass
+
+    def _expert(self, question: str, note: str, stream=None, on_details=None):
+        """Отдаёт голосу только суть, а весь разбор публикует карточкой.
+
+        Модель пишет первой строкой суть, затем пустую строку и markdown. Если она
+        формат не соблюла, суть обрезается сама: два предложения или ~260 знаков.
+        `stream` — готовый поток вместо обычного экспертного ответа.
+        """
+        spoken: list[str] = []
+        rest: list[str] = []
+        speaking = True
+        source = stream if stream is not None else self._agent.expert_stream(question, context=note)
+        for piece in source:
+            if not speaking:
+                rest.append(piece)
+                continue
+            spoken.append(piece)
+            text = "".join(spoken)
+            cut = _gist_cut(text)
+            if cut is None:
+                continue
+            speaking = False
+            head, tail = text[:cut], text[cut:]
+            if head.strip():
+                yield _speakable(head)
+            rest.append(tail)
+        if speaking:
+            text = "".join(spoken)
+            yield _speakable(text[:_gist_cut(text, final=True) or len(text)])
+            rest.append(text[_gist_cut(text, final=True) or len(text):])
+        details = "".join(rest).strip()
+        if on_details is not None:
+            on_details(details)
+        if len(details) > 40:
+            bus.bus.publish({"type": "message", "kind": "report", "text": details})
+            yield " Подробности на экране."
+
     # ---------------------------------------------------------------- речь
 
     def interrupt(self) -> None:
@@ -841,6 +1222,43 @@ class Assistant:
         with self._speech_guard:
             self._speech_epoch += 1
         self._speech_stop.set()
+
+    @contextlib.contextmanager
+    def _conversation(self):
+        """Пока Юки отвечает человеку, агент-программист не занимает модель."""
+        with self._talk_lock:
+            self._talking += 1
+        try:
+            yield
+        finally:
+            with self._talk_lock:
+                self._talking -= 1
+                self._quiet_since = time.monotonic()
+                self._talk_lock.notify_all()
+
+    def _wait_quiet(self, pause_s: float = 4.0) -> None:
+        """Ждёт, пока разговор стихнет: человек часто задаёт следующий вопрос сразу."""
+        with self._talk_lock:
+            while self._talking > 0 or time.monotonic() - self._quiet_since < pause_s:
+                self._talk_lock.wait(timeout=0.5)
+
+    def start_code(self, task: str, existing=None, parent=None) -> str:
+        """Запускает агента-программиста; о готовности Юки скажет сама."""
+        if self.coder.busy:
+            return "Я ещё пишу прошлый проект. Скажи «стоп», если он больше не нужен."
+        started = self.coder.start(task, on_done=self._code_done, parent=parent, existing=existing)
+        if not started:
+            return "Я ещё пишу прошлый проект."
+        bus.bus.publish({"type": "ui", "action": "open_section", "section": "agent"})
+        if existing is not None:
+            return f"Дорабатываю «{Path(existing).name}». Скажу, когда проверю."
+        return ("Берусь. Сначала продумаю план, потом напишу код, тесты и сама всё проверю — "
+                "ход работы во вкладке «Агент».")
+
+    def _code_done(self, summary: str) -> None:
+        bus.bus.publish({"type": "message", "kind": "report", "text": f"## Агент\n{summary}"})
+        # путь к папке читать вслух незачем — он в «Диалоге» и во вкладке
+        self.say(re.sub(r"Папка .*?, файлы: .*$", "Открыла, пробуй.", summary))
 
     def say(self, text: str) -> None:
         if text.strip():
@@ -932,8 +1350,11 @@ class Assistant:
         Речь начинается с первого законченного предложения, поэтому пауза между
         вопросом и голосом равна времени генерации одной фразы, а не всего ответа.
         """
+        from . import persona
+
         voice = self._voice
         collected: list[str] = []
+        pieces = persona.stream_fix(pieces)  # мужской голос говорит о себе в мужском роде
 
         def tracked():
             for piece in pieces:
@@ -1146,7 +1567,8 @@ class Assistant:
         self._speech_stop.clear()
         bus.bus.set_state(bus.THINKING)
         turn = self._turn
-        answer = self.say_stream(self._with_filler(self._respond_stream(clean, turn), turn))
+        with self._conversation():
+            answer = self.say_stream(self._with_filler(self._respond_stream(clean, turn), turn))
         bus.bus.log("assistant", answer)
         self._open_until = time.monotonic() + FOLLOW_UP_S
         self._learn(clean, answer)

@@ -89,24 +89,25 @@ def voice_page(store: SettingsStore, actions: Actions) -> QWidget:
 
     card = Card(i18n.t("Голос ассистента"), i18n.t("Тембр, которым Юки говорит вслух."))
     row, box = select_row(i18n.t("Профиль голоса"),
-                          i18n.t("Silero держит все голоса в одной модели — переключение мгновенное."),
-                          items, str(store.get("tts", "voice", voices.DEFAULT)))
+                          i18n.t("Два голоса — мощный мужской и мощный женский. Без сети звучит офлайн-двойник того же пола."),
+                          items, (voices.get(str(store.get("tts", "voice", voices.DEFAULT)))
+                                  or voices.get(voices.DEFAULT)).key)
     box.currentIndexChanged.connect(
         lambda: (store.set("tts", "voice", box.currentData()), actions.apply_voice(str(box.currentData())))
     )
     card.add(row)
 
     engine_row, engine = select_row(
-        i18n.t("Движок синтеза"), i18n.t("auto выбирает лучший доступный: Silero → Piper → Edge → системный."),
-        [("auto", i18n.t("АВТОМАТИЧЕСКИ")), ("silero", i18n.t("SILERO · офлайн")), ("piper", i18n.t("PIPER · офлайн")),
-         ("edge", i18n.t("EDGE · сеть")), ("pyttsx3", i18n.t("СИСТЕМНЫЙ"))],
+        i18n.t("Движок синтеза"), i18n.t("Нейроголос звучит лучше всех, но нужна сеть; тормозит сеть — Юки сама переходит на офлайн."),
+        [("edge", i18n.t("НЕЙРОГОЛОС · лучший")), ("silero", i18n.t("SILERO · офлайн, мгновенно")),
+         ("auto", i18n.t("АВТОМАТИЧЕСКИ")), ("pyttsx3", i18n.t("СИСТЕМНЫЙ"))],
         str(store.get("tts", "engine", "auto")),
     )
     engine.currentIndexChanged.connect(lambda: store.set("tts", "engine", engine.currentData()))
     card.add(engine_row)
 
     gain_row, gain, _ = slider_row(i18n.t("Громкость речи"), i18n.t("Уровень голоса относительно системного."),
-                                   float(store.get("tts", "voice_gain", 1.0)) * 100, 40, 160)
+                                   float(min(1.3, float(store.get("tts", "voice_gain", 1.0)))) * 100, 40, 130)
     gain.valueChanged.connect(lambda value: store.set("tts", "voice_gain", round(value / 100.0, 2)))
     card.add(gain_row)
 
@@ -308,8 +309,11 @@ def character_page(store: SettingsStore, actions: Actions) -> QWidget:
     # главнее: выбор, сделанный голосом или на странице «Голос», пишется туда, и
     # страница персонажа показывала устаревшее имя, пока её не трогали руками.
     current_voice = (str(store.get("tts", "voice", "")).strip()
-                     or str(store.get("companion", "voice", "mira")))
-    voice_row, voice = select_row(i18n.t("Голос персонажа"), i18n.t("Женские живые голоса с аниме-интонацией."),
+                     or str(store.get("companion", "voice", "yuki")))
+    # прежние ключи (sora, mira, atlas) ведут в новые голоса
+    known = voices.get(current_voice)
+    current_voice = known.key if known is not None else "yuki"
+    voice_row, voice = select_row(i18n.t("Голос персонажа"), i18n.t("Мощный женский или мощный мужской голос."),
                                   voice_items, current_voice)
     main.add(voice_row)
 

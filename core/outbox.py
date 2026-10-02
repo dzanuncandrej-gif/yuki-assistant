@@ -176,8 +176,11 @@ def search_query(name: str) -> str:
 
 # типы чатов, которыми Telegram начинает подпись элемента списка:
 # «Бот, DarkspiritBOT, …», «Группа, 8В, …»
-_CHAT_KINDS = frozenset({"бот", "группа", "канал", "избранное", "чат", "супергруппа",
-                         "секретный чат", "bot", "group", "channel", "saved messages"})
+_CHAT_KINDS = frozenset({"бот", "группа", "канал", "чат", "супергруппа",
+                         "секретный чат", "bot", "group", "channel"})
+# «Избранное» — не пометка типа, а имя чата: раньше оно выбрасывалось как пометка,
+# и чат «Избранное» не находился никогда
+_SAVED_TITLES = frozenset({"избранное", "saved messages"})
 
 
 def chat_title(label: str) -> str:
@@ -190,6 +193,8 @@ def chat_title(label: str) -> str:
     """
     for part in str(label or "").split(","):
         clean = part.strip()
+        if clean.lower() in _SAVED_TITLES:
+            return clean
         if clean and clean.lower() not in _CHAT_KINDS:
             return clean
     return str(label or "").strip()
@@ -347,12 +352,18 @@ def _clear_field() -> None:
 _last_results: dict[str, screen.Element] = {}
 
 
-def _result_names(service: Service, query: str) -> tuple[str, ...]:
+def _best_similarity(names: tuple[str, ...], found: str) -> float:
+    return max((similarity(name, found) for name in names if name), default=0.0)
+
+
+def _result_names(service: Service, query: str | tuple[str, ...]) -> tuple[str, ...]:
     """Имена в списке результатов поиска — то, из чего человек будет выбирать.
 
     Сравнивается только имя собеседника, а не вся подпись строки: в подписи
     есть и последнее сообщение, а в нём может встретиться чужое имя.
     """
+    queries = (query,) if isinstance(query, str) else tuple(query)
+    by_handle = any(item.startswith("@") for item in queries)
     seen: list[str] = []
     _last_results.clear()
     for item in screen.visible_elements(fresh=True):
@@ -361,7 +372,9 @@ def _result_names(service: Service, query: str) -> tuple[str, ...]:
         name = chat_title(item.name) if item.role == "listitem" else item.name.strip()
         if len(name) < 2 or len(name) > 80 or name.lower() in ("поиск", "search"):
             continue
-        if similarity(query, name) < MAYBE:
+        # поиск по @никнейму: Telegram показывает человека под его именем, а не
+        # под никнеймом, — поэтому годится строка списка, даже не похожая на запрос
+        if _best_similarity(queries, name) < MAYBE and not (by_handle and item.role == "listitem"):
             continue
         if name not in seen:
             seen.append(name)
@@ -369,7 +382,32 @@ def _result_names(service: Service, query: str) -> tuple[str, ...]:
     return tuple(seen[:6])
 
 
-def prepare(service_name: str, contact: str, timeout_s: float = 25.0) -> Draft:
+def _wait_results(service: Service, asked: str | tuple[str, ...]) -> tuple[str, ...]:
+    """Ждёт выдачу поиска, но не дольше нужного.
+
+    Раньше здесь стояла неподвижная пауза в 1,6 секунды на каждый поиск. Теперь
+    выдача проверяется каждые 0,15 секунды: точное совпадение, увиденное дважды
+    подряд, — и сразу дальше. Долгий путь остаётся только когда ничего не нашлось.
+    """
+    deadline = time.monotonic() + SEARCH_WAIT_S
+    names: tuple[str, ...] = ()
+    steady = 0
+    time.sleep(0.2)
+    while time.monotonic() < deadline:
+        screen.invalidate()
+        current = _result_names(service, asked)
+        names_asked = (asked,) if isinstance(asked, str) else asked
+        exact = any(_best_similarity(names_asked, name) >= SURE for name in current)
+        steady = steady + 1 if (exact and current == names) else 0
+        names = current
+        if steady >= 1:
+            break
+        time.sleep(0.15)
+    return names
+
+
+def prepare(service_name: str, contact: str, timeout_s: float = 25.0,
+            also: tuple[str, ...] = ()) -> Draft:
     """Открывает мессенджер и ищет контакт. Ничего не отправляет.
 
     Возвращает черновик с тем, КОГО удалось найти. Решение отправлять принимает
@@ -384,7 +422,7 @@ def prepare(service_name: str, contact: str, timeout_s: float = 25.0) -> Draft:
 
     window = _window(service, timeout_s=timeout_s)
     win.focus(window)
-    time.sleep(0.6)
+    time.sleep(0.25)
     screen.invalidate()
 
     if not _focus_search(service):
@@ -392,11 +430,10 @@ def prepare(service_name: str, contact: str, timeout_s: float = 25.0) -> Draft:
             f"не нашла строку поиска в {service.title}. Открой её сам и повтори просьбу"
         )
 
-    automation.type_text(search_query(asked))
-    time.sleep(SEARCH_WAIT_S)
-    screen.invalidate()
-
-    names = _result_names(service, asked)
+    automation.type_text(search_query(asked) if not asked.startswith("@") else asked)
+    # сверяем выдачу и с тем, что ищем, и с тем, как человека назвали вслух
+    compare = tuple(dict.fromkeys((asked, *also)))
+    names = _wait_results(service, compare)
     draft = Draft(service=service, asked=asked, candidates=names)
 
     if not names:
@@ -405,15 +442,65 @@ def prepare(service_name: str, contact: str, timeout_s: float = 25.0) -> Draft:
             _current = draft
         return draft
 
-    best = max(names, key=lambda name: similarity(asked, name))
+    best = max(names, key=lambda name: _best_similarity(compare, name))
     draft.found = best
     # «Владимир» и «Владимир Петров» оба совпадают уверенно — угадывать нельзя
-    sure = {name for name in names if similarity(asked, name) >= SURE}
+    sure = {name for name in names if _best_similarity(compare, name) >= SURE}
     draft.ambiguous = len(sure) > 1
+    # имя в выдаче похоже на одно из названных — для проверки дальше считаем его «просили»
+    if _best_similarity(compare, best) >= SURE or (asked.startswith("@") and len(names) == 1):
+        draft.asked = best
     draft.status = "найден" if draft.certain else "нужно подтверждение"
     with _lock:
         _current = draft
     return draft
+
+
+def _result_element(name: str) -> screen.Element | None:
+    """Строка выдачи с этим именем — найденная заново, прямо перед щелчком.
+
+    Координаты, снятые при поиске, к моменту щелчка устаревают. Пока человек
+    подтверждает адресата, Telegram дописывает в выдачу глобальные результаты и
+    заголовки разделов, список съезжает вниз — и щелчок по старой точке попадает
+    в соседнюю строку. Отсюда и брался «всегда второй контакт вместо первого».
+    """
+    screen.invalidate()
+    best: screen.Element | None = None
+    score = 0.0
+    for item in screen.visible_elements(fresh=True):
+        if item.role not in ("listitem", "treeitem", "button"):
+            continue
+        label = chat_title(item.name) if item.role == "listitem" else item.name.strip()
+        if len(label) < 2:
+            continue
+        value = similarity(name, label)
+        if value > score:
+            best, score = item, value
+    return best if score >= SURE else None
+
+
+def _click_result(draft: Draft) -> None:
+    target = (
+        _result_element(draft.found)
+        or screen.find(draft.found, fresh=True, only_clickable=True)
+        or _last_results.get(draft.found)
+    )
+    if target is None:
+        # список мог быть текстовым — пробуем клавишами
+        automation.press_key("enter")
+    else:
+        x, y = screen.click_point(target)
+        automation.mouse_click(x, y)
+    # ждём, пока заголовок окна назовёт открытый чат, а не фиксированную паузу
+    deadline = time.monotonic() + OPEN_WAIT_S + 0.6
+    time.sleep(0.15)
+    while time.monotonic() < deadline:
+        _, title, _ = screen.foreground()
+        header = re.split(r"\s+[–—-]\s+", re.sub(r"[‎‏‪-‮]", "", title or ""))[0].strip()
+        if header and similarity(draft.found, header) >= MAYBE:
+            break
+        time.sleep(0.1)
+    screen.invalidate()
 
 
 def open_found(draft: Draft) -> str:
@@ -422,21 +509,24 @@ def open_found(draft: Draft) -> str:
     Щелчок идёт по элементу списка с точным именем, а не по «первому результату»
     вслепую. Первый результат — самая частая причина письма не тому человеку:
     мессенджер ставит наверх недавние чаты, а не совпадение по имени.
-    """
-    target = _last_results.get(draft.found) or screen.find(draft.found, fresh=True, only_clickable=True)
-    if target is None:
-        # список мог быть текстовым — пробуем клавишами
-        automation.press_key("enter")
-    else:
-        x, y = screen.click_point(target)
-        automation.mouse_click(x, y)
-    time.sleep(OPEN_WAIT_S)
-    screen.invalidate()
-    screen.wait_until_stable(timeout_s=2.0)
 
+    После щелчка имя открытой переписки сверяется с тем, кого просили. Не сошлось —
+    одна повторная попытка по свежим координатам, и только потом честный отказ:
+    промах на строку означал бы письмо соседу по списку.
+    """
+    _click_result(draft)
     opened = _opened_chat_name(draft)
-    if opened:
-        draft.found = opened
+
+    if opened and similarity(draft.found, opened) < MAYBE:
+        _click_result(draft)
+        opened = _opened_chat_name(draft)
+        if opened and similarity(draft.found, opened) < MAYBE:
+            draft.status = "не тот чат"
+            raise OutboxError(
+                f"открылась переписка «{opened}», а не «{draft.found}». "
+                f"Ничего не отправила — открой нужный чат сам и повтори просьбу"
+            )
+
     draft.status = "чат открыт"
     return opened or draft.found
 
@@ -524,9 +614,9 @@ def deliver(draft: Draft, text: str) -> str:
         time.sleep(0.2)
 
     automation.type_text(message)
-    time.sleep(0.35)
+    time.sleep(0.12)
     automation.press_key("enter")
-    time.sleep(0.9)
+    time.sleep(0.3)
     screen.invalidate()
 
     draft.text = message

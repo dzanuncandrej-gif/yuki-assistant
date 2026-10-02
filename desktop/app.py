@@ -1,4 +1,4 @@
-"""Сборка десктопного приложения: формат OpenGL, ассистент, мост, окно."""
+﻿"""Сборка десктопного приложения: формат OpenGL, ассистент, мост, окно."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from PySide6.QtWidgets import QApplication
 from core import autostart, bus
 from core.assistant import Assistant
 
-from . import webassets
+from . import fonts, webassets
 from .bridge import Bridge
 from .shell import Shell
 from .theme import QSS
@@ -65,11 +65,16 @@ def run(cfg: Mapping[str, Any], selftest: Path | None = None) -> int:
     app = QApplication(sys.argv)
     app.setApplicationName("Юки")
     app.setQuitOnLastWindowClosed(False)  # живём в трее
+    fonts.load()
+    app.setFont(fonts.font(fonts.SANS, 9.5))
     app.setStyleSheet(QSS)
 
     # настройка автозапуска могла измениться вне приложения — приводим в согласие
     autostart.sync(bool(cfg.get("ui", {}).get("autostart", False)))
 
+    from core import runlog
+
+    runlog.start()
     assistant = Assistant(cfg)
     bridge = Bridge()
     bus.bus.subscribe_callback(bridge.publish)
@@ -83,7 +88,11 @@ def run(cfg: Mapping[str, Any], selftest: Path | None = None) -> int:
     else:
         assistant.start()
         shell.start()
-        assistant.greet(_greeting(cfg))
+        if cfg.get("ui", {}).get("onboarded"):
+            assistant.greet(_greeting(cfg))
+        else:
+            # первый запуск: вместо приветствия — знакомство, оно поздоровается само
+            QTimer.singleShot(2500, window.start_onboarding)
 
     return app.exec()
 
@@ -91,7 +100,7 @@ def run(cfg: Mapping[str, Any], selftest: Path | None = None) -> int:
 def _schedule_selftest(window: MainWindow, target: Path, app: QApplication) -> None:
     """Снимает каждый раздел пульта — проверка сборки без запуска микрофона."""
 
-    sections = ("dialog", "voice", "ai", "character", "account")
+    sections = ("dialog", "messages", "scenarios", "agent", "playlist", "voice", "character", "memory", "ai", "language", "account")
 
     def capture() -> None:
         window.log.add_message("system", "Самопроверка интерфейса.")

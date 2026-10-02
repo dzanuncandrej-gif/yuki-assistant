@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from core import i18n, outbox
+from core import i18n, outbox, people
 
 from .controls import Card, Row
 
@@ -61,12 +61,113 @@ class MessagesPage(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 8, 0)
         layout.setSpacing(14)
+        layout.addWidget(self._people_card())
         layout.addWidget(self._who_card())
         layout.addWidget(self._text_card())
         layout.addStretch(1)
         self._refresh()
 
     # ---------------------------------------------------------------- сборка
+
+    def _people_card(self) -> Card:
+        """Книга людей: «Дима» → «Дмитрий Иванов». После этого «открой Диму и
+        напиши привет» открывает нужный чат сразу, без поиска вслепую и вопросов."""
+        card = Card(i18n.t("Люди"), i18n.t(
+            "Как ты называешь человека и как он записан в мессенджере. Юки запоминает людей и сама — "
+            "после первой удачной отправки."))
+
+        self.people_list = QWidget()
+        self._people_layout = QVBoxLayout(self.people_list)
+        self._people_layout.setContentsMargins(0, 0, 0, 0)
+        self._people_layout.setSpacing(6)
+        card.add(self.people_list)
+
+        self.alias_input = QLineEdit()
+        self.alias_input.setObjectName("menuInput")
+        self.alias_input.setMinimumWidth(150)
+        self.alias_input.setPlaceholderText(i18n.t("как называешь: дима"))
+        self.name_input = QLineEdit()
+        self.name_input.setObjectName("menuInput")
+        self.name_input.setMinimumWidth(190)
+        self.name_input.setPlaceholderText(i18n.t("как записан: Дмитрий Иванов"))
+        self.name_input.returnPressed.connect(self._add_person)
+        self.person_app = QComboBox()
+        self.person_app.setObjectName("menuSelect")
+        for item in outbox.services():
+            self.person_app.addItem(item.title, item.key)
+        add = QPushButton(i18n.t("Запомнить"))
+        add.setObjectName("menuAction")
+        add.setCursor(Qt.CursorShape.PointingHandCursor)
+        add.clicked.connect(self._add_person)
+
+        form = QWidget()
+        row = QHBoxLayout(form)
+        row.setContentsMargins(0, 4, 0, 0)
+        row.setSpacing(8)
+        row.addWidget(self.alias_input, 1)
+        row.addWidget(self.name_input, 1)
+        row.addWidget(self.person_app)
+        row.addWidget(add)
+        card.add(form)
+        self._render_people()
+        return card
+
+    def _render_people(self) -> None:
+        while self._people_layout.count():
+            item = self._people_layout.takeAt(0)
+            widget = item.widget() if item is not None else None
+            if widget is not None:
+                widget.deleteLater()
+        everyone = people.everyone()
+        if not everyone:
+            empty = QLabel(i18n.t("Пока никого. Добавь человека ниже или просто отправь ему сообщение голосом."))
+            empty.setObjectName("rowHint")
+            empty.setWordWrap(True)
+            self._people_layout.addWidget(empty)
+            return
+        titles = {item.key: item.title for item in outbox.services()}
+        for person in everyone:
+            line = QWidget()
+            box = QHBoxLayout(line)
+            box.setContentsMargins(0, 0, 0, 0)
+            box.setSpacing(10)
+            alias = QLabel(person.alias.capitalize())
+            alias.setObjectName("rowLabel")
+            arrow = QLabel("→")
+            arrow.setObjectName("rowHint")
+            name = QLabel(f"{person.name}  ·  {titles.get(person.app, person.app)}")
+            name.setObjectName("rowHint")
+            remove = QPushButton("×")
+            remove.setObjectName("menuRemove")
+            remove.setFixedSize(30, 30)
+            remove.setCursor(Qt.CursorShape.PointingHandCursor)
+            remove.setToolTip(i18n.t("Забыть"))
+            remove.clicked.connect(lambda _=False, key=person.alias: self._forget_person(key))
+            box.addWidget(alias)
+            box.addWidget(arrow)
+            box.addWidget(name, 1)
+            box.addWidget(remove)
+            self._people_layout.addWidget(line)
+
+    def _add_person(self) -> None:
+        alias, name = self.alias_input.text().strip(), self.name_input.text().strip()
+        if not alias or not name:
+            self.status.setText(i18n.t("Для человека нужно и «как называешь», и «как записан»."))
+            return
+        people.remember(alias, name, str(self.person_app.currentData() or "telegram"))
+        self.alias_input.clear()
+        self.name_input.clear()
+        self._render_people()
+        self.status.setText(i18n.t("Запомнила: «{alias}» — это {name}.").format(alias=alias, name=name))
+
+    def _forget_person(self, alias: str) -> None:
+        people.forget(alias)
+        self._render_people()
+
+    def showEvent(self, event) -> None:
+        # Юки могла запомнить нового человека, пока меню было закрыто
+        super().showEvent(event)
+        self._render_people()
 
     def _who_card(self) -> Card:
         card = Card(i18n.t("Кому"), i18n.t("Мессенджер и человек. Юки откроет переписку и покажет, кого нашла."))

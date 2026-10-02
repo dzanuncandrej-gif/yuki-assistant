@@ -12,8 +12,9 @@ def test_keys_are_unique() -> None:
 
 def test_every_profile_has_russian_and_english_voice() -> None:
     for profile in voices.catalog():
-        assert profile.edge_voice.startswith("ru-"), f"{profile.key}: русский голос не задан"
-        assert profile.edge_voice_en.startswith("en-"), f"{profile.key}: английский голос не задан"
+        # русский: родной ru-голос или мультиязычный нейроголос, который говорит по-русски
+        assert profile.edge_voice.startswith("ru-") or "Multilingual" in profile.edge_voice,             f"{profile.key}: русский голос не задан"
+        assert profile.edge_voice_en.startswith("en-") or "Multilingual" in profile.edge_voice_en,             f"{profile.key}: английский голос не задан"
 
 
 def test_companion_keys_exist_in_catalog() -> None:
@@ -27,9 +28,13 @@ def test_default_profile_is_in_catalog() -> None:
 
 
 def test_resolve_understands_spoken_forms() -> None:
-    assert voices.resolve("атлас").key == "atlas"
-    assert voices.resolve("ауру").key == "aura"
-    assert voices.resolve("sora").key == "sora"
+    assert voices.resolve("уильяма").key == "william"
+    assert voices.resolve("реми").key == "remy"
+    assert voices.resolve("дмитрия").key == "dmitry"
+    assert voices.resolve("женский").key == "yuki"
+    # прежние имена ведут в новые голоса, а не в ошибку
+    assert voices.resolve("ауру").key == "yuki"
+    assert voices.get("jarvis").key == "william"
 
 
 def test_resolve_rejects_unknown_name() -> None:

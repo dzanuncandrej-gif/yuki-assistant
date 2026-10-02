@@ -17,7 +17,7 @@ from PySide6.QtCore import (
     Qt,
     Signal,
 )
-from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPen
+from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPen, QRadialGradient
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -29,8 +29,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..theme import ACCENT
-
 
 class GlassToggle(QWidget):
     """Переключатель: капля скользит по стеклянной дорожке, свечение зажигается плавно."""
@@ -39,7 +37,7 @@ class GlassToggle(QWidget):
 
     def __init__(self, checked: bool = False, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setFixedSize(52, 28)
+        self.setFixedSize(56, 30)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._checked = checked
         self._progress = 1.0 if checked else 0.0
@@ -82,30 +80,29 @@ class GlassToggle(QWidget):
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        track = QRectF(1, 4, self.width() - 2, self.height() - 8)
+        track = QRectF(1, 3, self.width() - 2, self.height() - 6)
+        t = self._progress
 
-        accent = QColor(ACCENT)
-        off = QColor(120, 150, 195, 40)
-        blend = QColor(
-            int(off.red() + (accent.red() - off.red()) * self._progress),
-            int(off.green() + (accent.green() - off.green()) * self._progress),
-            int(off.blue() + (accent.blue() - off.blue()) * self._progress),
-            int(40 + 120 * self._progress),
-        )
-        painter.setPen(QPen(QColor(accent.red(), accent.green(), accent.blue(),
-                                   int(40 + 140 * self._progress)), 1.2))
-        painter.setBrush(blend)
+        # выключен — тёмная стеклянная дорожка; включён — градиент ядра
+        painter.setPen(QPen(QColor(130, 170, 255, int(60 + 60 * (1 - t))), 1))
+        painter.setBrush(QColor(10, 16, 32, 230))
         painter.drawRoundedRect(track, track.height() / 2, track.height() / 2)
+        if t > 0.01:
+            fill = QLinearGradient(track.topLeft(), track.topRight())
+            fill.setColorAt(0.0, QColor(88, 182, 255, int(230 * t)))
+            fill.setColorAt(1.0, QColor(139, 108, 255, int(230 * t)))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(fill)
+            painter.drawRoundedRect(track, track.height() / 2, track.height() / 2)
 
-        knob_x = track.left() + 10 + (track.width() - 20) * self._progress
-        glow = QColor(accent)
-        glow.setAlphaF(0.25 * self._progress)
+        knob_x = track.left() + 11 + (track.width() - 22) * t
+        glow = QColor(140, 200, 255)
+        glow.setAlphaF(0.35 * t)
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(glow)
-        painter.drawEllipse(QPointF(knob_x, track.center().y()), 13, 13)
-
-        painter.setBrush(QColor(235, 244, 255) if self._checked else QColor(150, 168, 195))
-        painter.drawEllipse(QPointF(knob_x, track.center().y()), 8, 8)
+        painter.drawEllipse(QPointF(knob_x, track.center().y()), 14, 14)
+        painter.setBrush(QColor(255, 255, 255) if self._checked else QColor(150, 168, 195))
+        painter.drawEllipse(QPointF(knob_x, track.center().y()), 8.5, 8.5)
         painter.end()
 
 
@@ -268,7 +265,7 @@ class Starfield(QWidget):
 
         self._stars = [
             (random.random(), random.random(), random.uniform(0.5, 1.8), random.uniform(0.2, 1.0))
-            for _ in range(70)
+            for _ in range(110)
         ]
 
     def _tick(self) -> None:
@@ -282,13 +279,25 @@ class Starfield(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         width, height = self.width(), self.height()
 
-        haze = QLinearGradient(0, 0, width, height)
-        haze.setColorAt(0.0, QColor(14, 26, 48, 90))
-        haze.setColorAt(0.55, QColor(6, 9, 18, 0))
-        haze.setColorAt(1.0, QColor(30, 16, 48, 70))
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(haze)
+        base = QLinearGradient(0, 0, 0, height)
+        base.setColorAt(0.0, QColor(5, 8, 18))
+        base.setColorAt(1.0, QColor(3, 4, 10))
+        painter.setBrush(base)
         painter.drawRect(0, 0, width, height)
+
+        # две туманности медленно дышат: голубая сверху справа, фиолетовая снизу слева
+        breathe = 0.5 + 0.5 * math.sin(self._phase * 0.6)
+        for cx, cy, radius, color, alpha in (
+            (0.78, 0.08, 0.62, (40, 110, 230), 70 + 30 * breathe),
+            (0.30, 1.02, 0.70, (110, 60, 220), 60 + 30 * (1 - breathe)),
+            (0.55, 0.55, 0.45, (30, 60, 140), 22),
+        ):
+            glow = QRadialGradient(QPointF(cx * width, cy * height), radius * max(width, height))
+            glow.setColorAt(0.0, QColor(*color, int(alpha)))
+            glow.setColorAt(1.0, QColor(*color, 0))
+            painter.setBrush(glow)
+            painter.drawRect(0, 0, width, height)
 
         for x, y, size, speed in self._stars:
             twinkle = 0.35 + 0.65 * (0.5 + 0.5 * math.sin(self._phase * speed * 2.4 + x * 30))

@@ -45,6 +45,15 @@ _SENTENCE = re.compile(r"(?<=[.!?…])\s+|\n+")
 
 # столько секунд не трогаем упавший движок (нет сети, заблокированная библиотека)
 _BLOCK_S = 180.0
+
+# Нейроголос по сети: сколько ждать один кусок, сколько кусков готовить заранее,
+# и какая задержка первого звука уже считается «сеть тормозит».
+_EDGE_TIMEOUT_S = 6.0
+_EDGE_LOOKAHEAD = 3
+# Медленная сеть больше не переводит на офлайн-голос: роботизированный Silero
+# вместо выбранного голоса звучал как поломка. Лучше подождать секунду.
+_EDGE_SLOW_S = 0.0
+_EDGE_COOLDOWN_S = 90.0
 # короткие ответы («Готово.», «Слушаю.») кэшируются на диск и звучат мгновенно
 _CACHE_LIMIT = 120
 _CACHE_FILES = 240  # столько файлов держим в кэше, лишние удаляются
@@ -459,12 +468,12 @@ class Speaker:
                 # а последствия были грубые. Движок помечался упавшим, следующая
                 # фраза читалась другим голосом, и человек слышал, как посреди
                 # ответа сменился говорящий. Смена голоса хуже секундной паузы.
-                if engine == preferred and not retried:
+                if engine == preferred and not retried and engine != "edge":
                     retried = True
                     time.sleep(0.35)
                     order.insert(index, engine)
                     continue
-                self._block(engine, err)
+                self._block(engine, err, seconds=20.0 if engine == "edge" else _BLOCK_S)
                 continue
             if produced:
                 if engine != self._engine_name:
@@ -481,8 +490,8 @@ class Speaker:
         фраза будет ждать одну и ту же ошибку (нет сети, заблокированная библиотека)."""
         return self._blocked.get(engine, 0.0) > time.monotonic()
 
-    def _block(self, engine: str, error: Exception) -> None:
-        self._blocked[engine] = time.monotonic() + _BLOCK_S
+    def _block(self, engine: str, error: Exception, seconds: float = _BLOCK_S) -> None:
+        self._blocked[engine] = time.monotonic() + seconds
         reason = str(error)
         if "espeakbridge" in reason or "Политика управления" in reason or "application control" in reason.lower():
             reason = (
@@ -594,11 +603,11 @@ class Speaker:
     def _silero_available(self) -> bool:
         if not voices.silero_ready():
             return False
-        try:
-            import torch  # noqa: F401
-        except ImportError:
-            return False
-        return True
+        # Проверяем наличие torch без импорта: сам импорт стоит ~200 МБ памяти,
+        # а эта проверка звучала перед каждой фразой — даже когда говорит нейроголос.
+        import importlib.util
+
+        return importlib.util.find_spec("torch") is not None
 
     def _stream_silero(self, text: str, should_stop: StopCheck | None) -> Iterator[Chunk]:
         model = self._silero
@@ -668,12 +677,26 @@ class Speaker:
     # --- Edge-TTS ---
 
     def _stream_edge(self, text: str, should_stop: StopCheck | None) -> Iterator[Chunk]:
+        """Нейроголос по сети — быстро и без зависаний.
+
+        Раньше каждое предложение ждало сеть по очереди и без предела: через VPN
+        первый звук приходил за 2–7 секунд, а обрыв посреди ответа переключал
+        голос на другой. Теперь следующие предложения запрашиваются заранее и
+        параллельно, у каждого запроса жёсткий таймаут и одна повторная попытка,
+        а слишком медленная сеть сразу уступает офлайн-голосу того же пола.
+        """
+        import concurrent.futures
+
         import edge_tts
         import soundfile as sf
 
-        voice = str(self._cfg.get("edge_voice", "ru-RU-DmitryNeural"))
+        voice = str(self._cfg.get("edge_voice", "en-US-AndrewMultilingualNeural"))
         rate = str(self._cfg.get("edge_rate", "+0%"))
-        pitch = str(self._cfg.get("edge_pitch", "-10Hz"))
+        pitch = str(self._cfg.get("edge_pitch", "+0Hz"))
+        timeout = float(self._cfg.get("edge_timeout_s", _EDGE_TIMEOUT_S))
+        pieces = [piece for piece in split_for_speech(text) if piece.strip()]
+        if not pieces:
+            return
 
         async def render(piece: str) -> bytes:
             buffer = io.BytesIO()
@@ -683,16 +706,43 @@ class Speaker:
                     buffer.write(item["data"])
             return buffer.getvalue()
 
-        for piece in split_for_speech(text):
-            if should_stop is not None and should_stop():
-                return
-            raw = asyncio.run(render(piece))
-            if not raw:
-                continue
-            samples, sample_rate = sf.read(io.BytesIO(raw), dtype="float32")
-            if samples.ndim > 1:
-                samples = samples.mean(axis=1)
-            yield samples.astype(np.float32), int(sample_rate)
+        def fetch(piece: str) -> tuple[bytes, float]:
+            last: Exception | None = None
+            for _ in range(2):
+                started = time.monotonic()
+                try:
+                    raw = asyncio.run(asyncio.wait_for(render(piece), timeout))
+                    if raw:
+                        return raw, time.monotonic() - started
+                    last = SynthesisError("пустой ответ")
+                except Exception as err:  # таймаут, обрыв, NoAudioReceived
+                    last = err
+            raise SynthesisError(f"нейроголос не ответил: {last}")
+
+        pool = concurrent.futures.ThreadPoolExecutor(max_workers=_EDGE_LOOKAHEAD, thread_name_prefix="jarvis-edge")
+        try:
+            futures = [pool.submit(fetch, piece) for piece in pieces[:_EDGE_LOOKAHEAD]]
+            submitted = len(futures)
+            for index in range(len(pieces)):
+                if should_stop is not None and should_stop():
+                    return
+                raw, spent = futures[index].result(timeout=timeout * 2 + 1)
+                if _EDGE_SLOW_S and index == 0 and spent > _EDGE_SLOW_S:
+                    # сеть еле тянет — следующие реплики пусть звучат офлайн,
+                    # человек не должен ждать голос по несколько секунд
+                    self._block(engine="edge", error=SynthesisError(
+                        f"сеть отвечает {spent:.1f} с — говорю офлайн-голосом"), seconds=_EDGE_COOLDOWN_S)
+                if submitted < len(pieces):
+                    futures.append(pool.submit(fetch, pieces[submitted]))
+                    submitted += 1
+                samples, sample_rate = sf.read(io.BytesIO(raw), dtype="float32")
+                if samples.ndim > 1:
+                    samples = samples.mean(axis=1)
+                yield samples.astype(np.float32), int(sample_rate)
+        except concurrent.futures.TimeoutError as err:
+            raise SynthesisError("нейроголос не ответил вовремя") from err
+        finally:
+            pool.shutdown(wait=False, cancel_futures=True)
 
     # --- SAPI5 ---
 

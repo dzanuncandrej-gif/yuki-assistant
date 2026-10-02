@@ -22,14 +22,60 @@ _model: Any | None = None
 _lock = threading.Lock()
 
 
-def _model_path() -> Path | None:
-    try:
-        import silero_vad
+def _data_dir() -> Path | None:
+    """Папка с моделями пакета silero_vad — без его импорта: пакет сам тянет torch."""
+    import importlib.util
 
-        candidate = Path(silero_vad.__file__).resolve().parent / "data" / "silero_vad.jit"
-        return candidate if candidate.exists() else None
-    except ImportError:
+    spec = importlib.util.find_spec("silero_vad")
+    if spec is None or not spec.submodule_search_locations:
         return None
+    return Path(next(iter(spec.submodule_search_locations))).resolve() / "data"
+
+
+def _model_path() -> Path | None:
+    folder = _data_dir()
+    if folder is None:
+        return None
+    for name in ("silero_vad.onnx", "silero_vad.jit"):
+        candidate = folder / name
+        if candidate.exists():
+            return candidate
+    return None
+
+
+class _OnnxVad:
+    """Silero VAD через onnxruntime — без torch.
+
+    torch ради одного детектора речи держал в памяти около двухсот мегабайт.
+    onnxruntime уже есть в процессе (он нужен распознаванию речи), а модель та
+    же самая, только в другом формате. Состояние и контекст в 64 сэмпла ведутся
+    так же, как в обёртке из пакета silero_vad.
+    """
+
+    CONTEXT = 64
+
+    def __init__(self, path: Path) -> None:
+        import onnxruntime
+
+        options = onnxruntime.SessionOptions()
+        options.intra_op_num_threads = 1
+        options.inter_op_num_threads = 1
+        # путь с кириллицей: модель отдаём байтами, а не именем файла
+        self._session = onnxruntime.InferenceSession(path.read_bytes(), sess_options=options,
+                                                     providers=["CPUExecutionProvider"])
+        self._sr = np.array(SAMPLE_RATE, dtype=np.int64)
+        self.reset_states()
+
+    def reset_states(self) -> None:
+        self._state = np.zeros((2, 1, 128), dtype=np.float32)
+        self._context = np.zeros((1, self.CONTEXT), dtype=np.float32)
+
+    def __call__(self, frame: np.ndarray, sample_rate: int = SAMPLE_RATE) -> float:
+        chunk = np.concatenate((self._context, frame.reshape(1, -1).astype(np.float32)), axis=1)
+        output, state = self._session.run(None, {"input": chunk, "state": self._state, "sr": self._sr})
+        self._state = state
+        self._context = chunk[:, -self.CONTEXT:]
+        return float(np.asarray(output).reshape(-1)[0])
 
 
 def available() -> bool:
@@ -43,13 +89,23 @@ def load() -> Any | None:
     with _lock:
         if _model is not None:
             return _model
-        path = _model_path()
-        if path is None:
+        folder = _data_dir()
+        if folder is None:
+            return None
+        onnx_path = folder / "silero_vad.onnx"
+        if onnx_path.exists():
+            try:
+                _model = _OnnxVad(onnx_path)
+                return _model
+            except Exception:
+                _model = None
+        jit_path = folder / "silero_vad.jit"
+        if not jit_path.exists():
             return None
         try:
             import torch
 
-            model = torch.jit.load(io.BytesIO(path.read_bytes()), map_location="cpu")
+            model = torch.jit.load(io.BytesIO(jit_path.read_bytes()), map_location="cpu")
             model.eval()
             torch.set_grad_enabled(False)
             _model = model
@@ -88,18 +144,24 @@ class SpeechDetector:
         model = self._model
         if model is None:
             return 0.0
-        import torch
 
         data = np.concatenate((self._tail, np.asarray(block, dtype=np.float32)))
         best = 0.0
         offset = 0
-        # режим без градиентов включаем на каждый вызов: настройка потоко-локальная,
-        # а детектор работает в потоке микрофона
-        with torch.no_grad():
+        if isinstance(model, _OnnxVad):
             while offset + FRAME <= data.size:
-                frame = torch.from_numpy(data[offset : offset + FRAME])
-                best = max(best, float(model(frame, SAMPLE_RATE)))
+                best = max(best, model(data[offset : offset + FRAME]))
                 offset += FRAME
+        else:
+            import torch
+
+            # режим без градиентов включаем на каждый вызов: настройка потоко-локальная,
+            # а детектор работает в потоке микрофона
+            with torch.no_grad():
+                while offset + FRAME <= data.size:
+                    frame = torch.from_numpy(data[offset : offset + FRAME])
+                    best = max(best, float(model(frame, SAMPLE_RATE)))
+                    offset += FRAME
         self._tail = data[offset:]
         # быстрый подъём и медленный спад: конец слова не обрубается на паузе внутри фразы
         self._probability = max(best, self._probability * 0.72)

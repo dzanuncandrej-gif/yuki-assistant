@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Юки — музыка</title>
+<link rel="stylesheet" href="./css/yuki.css">
+<link rel="stylesheet" href="./css/music.css">
+<script src="./vendor/qwebchannel.js"></script>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/three.module.js", "three/addons/": "./vendor/addons/" } }
+</script>
+</head>
+<body>
+<div class="music" id="music">
+  <!-- сейчас играет -->
+  <section class="now" aria-label="Сейчас играет">
+    <div class="now__backdrop" id="backdrop" aria-hidden="true"></div>
+    <canvas class="gl" id="orb" aria-hidden="true"></canvas>
+    <canvas class="spectrum" id="spectrum" aria-hidden="true"></canvas>
+
+    <div class="now__body">
+      <div class="cover" id="cover"><span class="cover__letter" id="cover-letter">♪</span><img id="cover-img" alt="" hidden></div>
+      <div class="now__info">
+        <p class="eyebrow" id="now-label">моя музыка</p>
+        <h1 id="now-title">Тишина</h1>
+        <p class="now__artist" id="now-artist">Скажи «Юки, включи мою музыку» или выбери песню справа</p>
+        <p class="now__meta mono" id="now-meta"></p>
+      </div>
+    </div>
+
+    <div class="transport">
+      <div class="timeline">
+        <span class="mono" id="elapsed">0:00</span>
+        <div class="bar" id="bar" role="slider" tabindex="0" aria-label="Позиция в песне" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div class="bar__fill" id="bar-fill"></div><div class="bar__thumb" id="bar-thumb"></div>
+        </div>
+        <span class="mono" id="total">0:00</span>
+      </div>
+      <div class="deck">
+        <div class="deck__left">
+  <button class="ctl ctl--small" id="like" type="button" aria-label="В любимые" aria-pressed="false" title="В любимые (L)">
+          <svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-9.2-8.6C1.4 8.6 3 5 6.4 5c2 0 3.6 1.2 4.6 2.8h2C14 6.2 15.6 5 17.6 5 21 5 22.6 8.6 21.2 11.4 19 15.6 12 20 12 20z"/></svg>
+        </button>
+        </div>
+      <div class="controls">
+        <button class="ctl" id="shuffle" type="button" aria-label="Вперемешку" aria-pressed="false" title="Вперемешку">
+          <svg viewBox="0 0 24 24"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>
+        </button>
+        <button class="ctl" id="prev" type="button" aria-label="Предыдущая" title="Предыдущая (Shift+←)">
+          <svg viewBox="0 0 24 24"><path d="M19 20L9 12l10-8z" class="fill"/><path d="M5 19V5"/></svg>
+        </button>
+        <button class="ctl ctl--main" id="toggle" type="button" aria-label="Играть" title="Пробел">
+          <svg viewBox="0 0 24 24" id="toggle-icon"><path d="M7 4.5v15l12.5-7.5z" class="fill"/></svg>
+        </button>
+        <button class="ctl" id="next" type="button" aria-label="Следующая" title="Следующая (Shift+→)">
+          <svg viewBox="0 0 24 24"><path d="M5 4l10 8-10 8z" class="fill"/><path d="M19 5v14"/></svg>
+        </button>
+        <button class="ctl" id="repeat" type="button" aria-label="Повтор: весь плейлист" title="Повтор">
+          <svg viewBox="0 0 24 24"><path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>
+          <b id="repeat-one" hidden>1</b>
+        </button>
+      </div>
+      <div class="extras">
+        <div class="volume">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5L6 9H2v6h4l5 4z" class="fill"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg>
+          <input type="range" id="volume" min="0" max="100" value="60" aria-label="Громкость музыки">
+        </div>
+      </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- очередь -->
+  <section class="queue" aria-label="Мои песни">
+    <header class="queue__head">
+      <div>
+        <h2>Мои песни</h2>
+        <p class="mono" id="stats">пока пусто</p>
+      </div>
+      <div class="queue__actions">
+        <button class="btn btn--primary btn--sm" id="add-files" type="button">
+          <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Песни
+        </button>
+        <button class="btn btn--sm" id="add-folder" type="button" title="Добавить папку целиком">
+          <svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Папку
+        </button>
+      </div>
+    </header>
+    <div class="queue__tools">
+      <label class="search">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+        <input id="search" type="search" placeholder="Поиск: песня, исполнитель, альбом" aria-label="Поиск по плейлисту">
+      </label>
+      <div class="filters" role="tablist" aria-label="Фильтр">
+        <button type="button" role="tab" class="filter" data-filter="all" aria-selected="true">Все</button>
+        <button type="button" role="tab" class="filter" data-filter="liked" aria-selected="false">♥ Любимые</button>
+        <button type="button" role="tab" class="filter" data-filter="top" aria-selected="false">Часто</button>
+      </div>
+    </div>
+    <ol class="tracks" id="tracks" aria-label="Список песен"></ol>
+    <div class="empty" id="empty" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>
+      <h3>Перетащи музыку сюда</h3>
+      <p>Файлы или целые папки — mp3, flac, m4a, wav, ogg. Юки сама прочитает названия, длительность и обложки.</p>
+    </div>
+  </section>
+
+  <div class="drop" id="drop" hidden><div><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Отпусти — добавлю в плейлист</div></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</div>
+<script type="module" src="./js/music.js"></script>
+</body>
+</html>

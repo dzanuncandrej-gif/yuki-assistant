@@ -1,0 +1,72 @@
+.call { position: fixed; inset: 0; overflow: hidden; }
+.call__vignette { position: absolute; inset: 0; pointer-events: none; background:
+  radial-gradient(90% 70% at 30% 50%, transparent 40%, rgba(2, 3, 8, 0.65)),
+  repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.018) 0 1px, transparent 1px 3px); }
+
+.call__top { position: absolute; left: 24px; right: 24px; top: 18px; display: flex; align-items: center; gap: 10px; z-index: 3; }
+.brand { display: flex; align-items: center; gap: 12px; margin-right: 10px; }
+.brand svg { width: 40px; height: 40px; fill: none; stroke: var(--cyan); stroke-width: 4; stroke-linecap: round; filter: drop-shadow(0 0 10px rgba(88, 182, 255, 0.7)); }
+.brand path { stroke: #fff; stroke-width: 8; }
+.brand b { display: block; font: 700 16px var(--display); letter-spacing: 0.32em; }
+.brand span { font-size: 10.5px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--cyan); }
+.call__stats { margin-left: auto; display: flex; gap: 8px; }
+#state-pill[data-state="listening"] i { background: var(--cyan); color: var(--cyan); }
+#state-pill[data-state="thinking"] i { background: var(--violet); color: var(--violet); animation: pulse 0.9s infinite; }
+#state-pill[data-state="speaking"] i { background: var(--ok); color: var(--ok); animation: pulse 0.6s infinite; }
+#state-pill[data-state="acting"] i { background: var(--warn); color: var(--warn); animation: pulse 0.7s infinite; }
+
+/* ---------------------------------------------------------------- правая колонка */
+.side { position: absolute; right: 24px; top: 78px; bottom: 112px; width: clamp(300px, 26vw, 420px); display: flex; flex-direction: column; gap: 14px; z-index: 2; }
+.feed, .transcript { border-radius: 18px; background: rgba(6, 10, 22, 0.62); border: 1px solid var(--line); backdrop-filter: blur(16px) saturate(130%); padding: 12px; animation: rise 0.6s var(--ease) both; }
+.feed--cam { animation-delay: 0.08s; }
+.transcript { animation-delay: 0.16s; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.feed__head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 10.5px; letter-spacing: 0.2em; color: var(--cyan); }
+.feed__head .dim { color: var(--mute); letter-spacing: 0.06em; text-transform: none; }
+.feed__frame { position: relative; aspect-ratio: 16 / 9; border-radius: 12px; overflow: hidden; background: #02040a; border: 1px solid var(--line); }
+.feed__frame--cam { aspect-ratio: 4 / 3; max-height: 22vh; margin: 0 auto; }
+.feed__frame img { width: 100%; height: 100%; object-fit: cover; display: block; opacity: 0; transition: opacity 0.4s; }
+.feed__frame img.is-live { opacity: 1; }
+.feed__empty { position: absolute; inset: 0; display: grid; place-items: center; font-size: 11px; color: var(--mute); letter-spacing: 0.1em; }
+.feed__scan { position: absolute; left: 0; right: 0; height: 30%; top: -30%; background: linear-gradient(180deg, transparent, rgba(88, 182, 255, 0.18), transparent); animation: scan 3.2s linear infinite; pointer-events: none; }
+@keyframes scan { to { top: 100%; } }
+.feed__frame::after { content: ''; position: absolute; inset: 0; border-radius: 12px; box-shadow: inset 0 0 0 1px rgba(88, 182, 255, 0.25), inset 0 0 40px rgba(88, 182, 255, 0.12); pointer-events: none; }
+.feed__caption { margin: 10px 2px 0; font-size: 13.5px; line-height: 1.5; color: var(--ink-2); min-height: 3em; }
+.feed__caption.is-trouble { color: #ffd2a0; }
+.gesture { position: absolute; left: 8px; bottom: 8px; padding: 4px 10px; border-radius: 8px; font-size: 11px; background: rgba(139, 108, 255, 0.85); color: #fff; animation: rise 0.3s var(--ease); }
+.transcript ol { list-style: none; margin: 0; padding: 0 4px 0 0; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 8px; }
+.transcript li { font-size: 13px; line-height: 1.45; color: var(--ink-2); animation: rise 0.35s var(--ease) both; }
+.transcript li b { display: block; font: 600 10px var(--mono); letter-spacing: 0.16em; color: var(--mute); margin-bottom: 1px; }
+.transcript li.yuki b { color: var(--cyan); }
+.transcript li.sys { font: 11.5px var(--mono); color: var(--mute); }
+
+/* ---------------------------------------------------------------- субтитры и док */
+.subs { position: absolute; left: 32px; right: calc(clamp(300px, 26vw, 420px) + 60px); bottom: 118px; z-index: 2; text-align: center; pointer-events: none; }
+.subs p { margin: 0 auto; max-width: 900px; transition: opacity 0.4s; }
+.subs__you { font-size: 15px; color: var(--mute); margin-bottom: 8px !important; font-style: italic; }
+.subs__yuki { font: 500 clamp(20px, 2vw, 30px)/1.35 var(--sans); color: #fff; text-shadow: 0 4px 30px rgba(0, 0, 0, 0.95), 0 0 2px #000; }
+
+.dock { position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%); display: flex; gap: 8px; padding: 8px; border-radius: 22px; z-index: 3;
+  background: rgba(6, 10, 22, 0.72); border: 1px solid var(--line-2); backdrop-filter: blur(18px) saturate(140%); box-shadow: 0 30px 80px -30px rgba(0, 0, 0, 0.9); }
+.dock__btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; width: 84px; height: 62px; border-radius: 16px; cursor: pointer;
+  border: 1px solid transparent; background: rgba(20, 30, 56, 0.55); color: var(--ink); transition: background 0.2s, border-color 0.2s, transform 0.25s var(--ease); }
+.dock__btn:hover { background: rgba(36, 54, 100, 0.7); border-color: var(--line-2); transform: translateY(-2px); }
+.dock__btn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.dock__btn span { font: 500 10.5px var(--mono); letter-spacing: 0.06em; color: var(--ink-2); }
+.dock__btn.is-on { color: var(--ok); }
+.dock__btn.is-off { color: var(--bad); background: rgba(255, 90, 120, 0.14); }
+.dock__btn--end { width: 96px; background: linear-gradient(135deg, #ff5a7a, #e0304f); color: #fff; box-shadow: 0 10px 30px -8px rgba(255, 60, 90, 0.8); }
+.dock__btn--end span { color: #fff; }
+.dock__btn--end:hover { background: linear-gradient(135deg, #ff7690, #f0405f); }
+
+/* ---------------------------------------------------------------- окошко в углу */
+.call.mini .side, .call.mini .call__stats, .call.mini #state-pill, .call.mini .subs__you, .call.mini .brand div { display: none; }
+.call.mini .call__top { left: 12px; right: 12px; top: 10px; cursor: move; }
+.call.mini .brand svg { width: 28px; height: 28px; }
+.call.mini .subs { left: 14px; right: 14px; bottom: 88px; }
+.call.mini .subs__yuki { font-size: 14px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.call.mini .dock { bottom: 12px; padding: 5px; gap: 5px; border-radius: 16px; }
+.call.mini .dock__btn { width: 50px; height: 50px; border-radius: 12px; }
+.call.mini .dock__btn span, .call.mini #look, .call.mini #stop { display: none; }
+.call.mini .call__vignette { background: radial-gradient(90% 80% at 50% 45%, transparent 45%, rgba(2, 3, 8, 0.7)); }
+
+@media (max-width: 900px) { .call:not(.mini) .side { display: none; } .subs { right: 32px; } }

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Юки — знакомство</title>
+<link rel="stylesheet" href="./css/yuki.css">
+<link rel="stylesheet" href="./css/onboarding.css">
+<script src="./vendor/qwebchannel.js"></script>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/three.module.js", "three/addons/": "./vendor/addons/" } }
+</script>
+</head>
+<body>
+  <div class="onb">
+    <section class="onb__stage" aria-hidden="true">
+      <canvas class="gl"></canvas>
+      <p class="onb__sub" id="subtitle"></p>
+    </section>
+
+    <section class="onb__panel">
+      <header class="onb__top">
+        <ol class="steps" id="steps" aria-label="Шаги знакомства"></ol>
+        <button class="skip-all" id="close" type="button">Пропустить знакомство</button>
+      </header>
+
+      <div class="onb__body" id="body" aria-live="polite"></div>
+
+      <footer class="onb__nav">
+        <button class="btn" id="back" type="button">Назад</button>
+        <button class="btn btn--primary" id="next" type="button">Дальше</button>
+      </footer>
+    </section>
+  </div>
+  <script type="module" src="./js/onboarding.js"></script>
+</body>
+</html>

@@ -50,7 +50,9 @@ NOT_A_NAME = frozenset(
 # назван мессенджер или адресат есть в контактах: «скажи погоду» — вопрос, а не письмо
 _SEND_STRONG = r"(?:напиши|напишите|отправь|отправить|пошли|скинь|черкни|send|write|text|message)"
 _SEND_WEAK = r"(?:скажи|передай|сообщи)"
-_FIND = r"(?:найди|найти|открой\s+(?:чат|переписку|диалог)\s+с|выбери|find)"
+# «найди Диму», «открой Диму», «открой чат с Димой», «зайди к Диме», «перейди в чат к Диме»
+_FIND = (r"(?:найди|найти|выбери|find|открой(?:\s+(?:чат|переписку|диалог|контакт)(?:\s+(?:с|со))?)?|"
+         r"зайди\s+(?:в\s+чат\s+)?(?:к|с)|перейди\s+(?:в\s+чат\s+)?(?:к|с))")
 
 _APP_WORDS = "|".join(sorted(map(re.escape, APPS), key=len, reverse=True))
 
@@ -69,6 +71,8 @@ _ROLE_WORDS = re.compile(
     re.I,
 )
 
+_SAVED = re.compile(r"\b(?:в\s+|во\s+)?(?:избранн\w*|сохран[её]нн\w*(?:\s+сообщени\w*)?|saved\s+messages)\b", re.I)
+
 # одно слово имени; второе — только с большой буквы («Владимиру Петрову»), иначе
 # «Вове привет» разобралось бы как имя из двух слов и пустой текст
 _NAME = r"(?P<contact>[A-Za-zА-ЯЁа-яё][\w\-]{0,24}(?:\s+(?-i:[A-ZА-ЯЁ])[\w\-]{1,24})?)"
@@ -78,7 +82,7 @@ _SEND_FORMS: tuple[re.Pattern[str], ...] = (
     # найди Владимира и напиши (ему) привет
     re.compile(
         rf"^{_FIND}\s+{_NAME}\s*(?:,|\s+(?:и|а|потом|затем|and))?\s*"
-        rf"(?P<verb>{_SEND_STRONG}|{_SEND_WEAK})(?:\s+(?:ему|ей|им))?(?:\s+(?P<message>.+))?$",
+        rf"(?P<verb>{_SEND_STRONG}|{_SEND_WEAK})(?:\s+(?:ему|ей|им|туда))?(?:\s+(?P<message>.+))?$",
         re.I | re.S,
     ),
     # напиши (сообщение) Владимиру: привет
@@ -158,6 +162,11 @@ def parse_send(text: str, known_contact: Callable[[str], bool] | None = None) ->
         return None
 
     app, rest = _extract_app(phrase)
+    # «в избранное», «в сохранённые» — это чат Telegram «Избранное»
+    rest = _SAVED.sub(" избранное ", rest)
+    rest = re.sub(r"\s+", " ", rest).strip()
+    # «контакт Дима», «в чат с Димой»: человек сам сказал, что это адресат
+    explicit = bool(_ROLE_WORDS.search(rest) or re.match(r"^(?:открой|зайди|перейди)\s+(?:чат|переписку|диалог|контакт|в\s+чат)", rest, re.I))
     rest = _ROLE_WORDS.sub("", rest).strip()
 
     for pattern in _SEND_FORMS:
@@ -172,7 +181,9 @@ def parse_send(text: str, known_contact: Callable[[str], bool] | None = None) ->
         weak = re.fullmatch(_SEND_WEAK, match.group("verb"), re.I) is not None
         if weak and not (app or known):
             continue
-        if not (app or known or _looks_like_person(contact, phrase)):
+        if contact.lower() == "избранное":
+            known = True
+        if not (app or known or explicit or _looks_like_person(contact, phrase)):
             continue
         return SendRequest(app=app or "telegram", contact=contact, message=message)
     return None

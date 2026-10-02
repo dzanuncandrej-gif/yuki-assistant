@@ -114,3 +114,14 @@ def context(query: str, limit: int = 4) -> str:
     if not hits:
         return ""
     return "Из памяти о пользователе: " + "; ".join(fact.text for fact in hits)
+
+
+def forget_exact(text: str) -> bool:
+    """Удаляет одну запись целиком — для кнопки «×» во вкладке «Память»."""
+    with _lock:
+        facts = _load()
+        keep = [fact for fact in facts if fact.text != text]
+        if len(keep) == len(facts):
+            return False
+        _save(keep)
+    return True

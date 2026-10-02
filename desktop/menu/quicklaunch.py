@@ -47,13 +47,13 @@ def _tile(name: str, on_click: Callable[[str], None], on_remove: Callable[[str],
     row.setSpacing(4)
 
     button = QPushButton(name)
-    button.setObjectName("menuAction")
+    button.setObjectName("menuGhost")
     button.setCursor(Qt.CursorShape.PointingHandCursor)
     button.setMinimumHeight(38)
     button.clicked.connect(lambda: on_click(name))
 
-    remove = QPushButton("✕")
-    remove.setObjectName("menuGhost")
+    remove = QPushButton("×")
+    remove.setObjectName("menuRemove")
     remove.setFixedSize(28, 38)
     remove.setToolTip(i18n.t("Убрать {name} из панели").format(name=name))
     remove.setCursor(Qt.CursorShape.PointingHandCursor)
