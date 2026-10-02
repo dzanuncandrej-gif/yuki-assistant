@@ -79,9 +79,55 @@ def _session() -> requests.Session:
         return _shared
 
 
+def safe_url(url: str, allow_local: bool = True) -> str:
+    """Адрес, который можно открыть: только http(s).
+
+    `webbrowser.open` отдаёт адрес системе, а та умеет запускать по нему что
+    угодно: file://, ms-settings:, search-ms:, протоколы установленных программ.
+    Адрес часто придумывает модель или приносит текст со страницы, поэтому всё,
+    кроме обычных сайтов, отклоняется. Для чтения страниц моделью закрыта и
+    локальная сеть: роутер и сервисы на этом компьютере ей читать незачем.
+    """
+    import ipaddress
+    import socket
+    from urllib.parse import urlparse
+
+    text = str(url or "").strip()
+    if not re.match(r"^[a-z][a-z0-9+.-]*:", text, re.IGNORECASE):
+        text = f"https://{text}"
+    parsed = urlparse(text)
+    if parsed.scheme.lower() not in ("http", "https") or not parsed.hostname:
+        raise WebError(f"открываю только сайты (http/https), а не «{parsed.scheme}:»")
+    if not allow_local:
+        host = parsed.hostname
+        try:
+            addresses = {info[4][0] for info in socket.getaddrinfo(host, None)}
+        except OSError:
+            addresses = set()
+        for address in addresses:
+            ip = ipaddress.ip_address(address.split("%")[0])
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                raise WebError("страницы локальной сети и этого компьютера не читаю")
+    return text
+
+
 def open_url(url: str) -> str:
-    webbrowser.open(url)
-    return url
+    target = safe_url(url)
+    webbrowser.open(target)
+    return target
+
+
+def open_images(query: str) -> str:
+    """Открывает поиск картинок по запросу.
+
+    Яндекс, а не DuckDuckGo: запросы у человека русские, и выдача по ним точнее.
+    Картинку показывает браузер — модель зрения тут не нужна и видеопамять,
+    которой хватает ровно на одну модель, остаётся у разговора.
+    """
+    text = str(query or "").strip()
+    if not text:
+        raise WebError("не сказано, какую картинку искать")
+    return open_url(f"https://yandex.ru/images/search?text={quote_plus(text)}")
 
 
 # ---------------------------------------------------------------- поиск
@@ -198,8 +244,7 @@ _SCRIPTS = ("script", "style", "noscript", "svg", "form", "nav", "footer", "head
 
 def read_page(url: str, limit: int = 4000) -> str:
     """Читаемый текст страницы: снимает разметку и служебные блоки."""
-    if not url.startswith(("http://", "https://")):
-        url = f"https://{url}"
+    url = safe_url(url, allow_local=False)
     try:
         response = _session().get(url, timeout=TIMEOUT_S)
         response.raise_for_status()

@@ -169,10 +169,20 @@ class _INPUT(ctypes.Structure):
     _fields_ = [("type", wintypes.DWORD), ("u", _Union)]
 
 
+def _guard_foreground() -> None:
+    """Окно с правами администратора молча выбрасывает наш ввод — говорим об этом честно."""
+    from . import elevation
+
+    title = elevation.foreground_blocked()
+    if title:
+        raise ActionError(elevation.blocked_message(title))
+
+
 def _send(events: list[_INPUT]) -> bool:
     """True, если система приняла события. False — ввод заблокирован защитой."""
     if not events:
         return True
+    _guard_foreground()
     array = (_INPUT * len(events))(*events)
     sent = ctypes.windll.user32.SendInput(len(events), array, ctypes.sizeof(_INPUT))
     return int(sent) == len(events)
@@ -189,7 +199,20 @@ def _vk(name: str) -> int:
     if key in VK_CODES:
         return VK_CODES[key]
     if len(key) == 1:
-        return ctypes.windll.user32.VkKeyScanW(ord(key)) & 0xFF
+        # Латиница и цифры совпадают с кодами VK напрямую. Это важнее, чем
+        # VkKeyScanW: тот смотрит на текущую раскладку и при русской раскладке
+        # возвращает -1 для «f», из-за чего сочетание Ctrl+F не набиралось.
+        if "a" <= key <= "z" or "0" <= key <= "9":
+            return ord(key.upper())
+        # Для остальных символов спрашиваем раскладку. VkKeyScanW ждёт WCHAR,
+        # а не число: без argtypes ctypes передавал int и падал с
+        # «argument 1: unicode string expected instead of int instance».
+        user32 = ctypes.windll.user32
+        user32.VkKeyScanW.argtypes = [ctypes.c_wchar]
+        user32.VkKeyScanW.restype = ctypes.c_short
+        code = user32.VkKeyScanW(key)
+        if code != -1:
+            return code & 0xFF
     raise ActionError(f"неизвестная клавиша: {name}")
 
 
@@ -312,8 +335,13 @@ def mouse_move(x: int, y: int, duration: float = 0.15) -> tuple[int, int]:
 def mouse_click(
     x: int | None = None, y: int | None = None, button: str = "left", clicks: int = 1
 ) -> tuple[int, int]:
+    from . import elevation
+
     gui = _pyautogui()
     if x is not None and y is not None:
+        title = elevation.point_blocked(int(x), int(y))
+        if title:
+            raise ActionError(elevation.blocked_message(title))
         mouse_move(x, y)
     gui.click(button=button if button in ("left", "right", "middle") else "left", clicks=max(1, int(clicks)))
     _screen_changed()
@@ -609,8 +637,11 @@ def screenshot(directory: Path | None = None) -> Path:
 
 
 def open_url(url: str) -> str:
-    webbrowser.open(url)
-    return url
+    from . import web
+
+    target = web.safe_url(url)  # только сайты: не file://, не ms-settings:
+    webbrowser.open(target)
+    return target
 
 
 def web_search(query: str) -> str:

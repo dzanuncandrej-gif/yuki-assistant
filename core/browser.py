@@ -60,7 +60,9 @@ def focus() -> str:
 
 def open_url(url: str, timeout_s: float = 15.0) -> str:
     """Открывает адрес и убеждается, что окно браузера действительно появилось."""
-    target = _normalize(url)
+    from . import web
+
+    target = web.safe_url(_normalize(url))  # только сайты: не file://, не ms-settings:
     webbrowser.open(target)
     window = browser_window(timeout_s)
     try:
