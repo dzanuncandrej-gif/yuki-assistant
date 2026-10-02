@@ -1,8 +1,8 @@
-﻿# Ярлыки Джарвиса: рабочий стол, меню «Пуск», автозапуск.
+﻿# Ярлыки Юки: рабочий стол, меню «Пуск», автозапуск.
 #   .\scripts\create_shortcut.ps1                создать ярлыки на рабочем столе и в «Пуске»
 #   .\scripts\create_shortcut.ps1 -Autostart     плюс автозапуск при входе в систему
 #   .\scripts\create_shortcut.ps1 -NoStartMenu   только рабочий стол
-#   .\scripts\create_shortcut.ps1 -Remove        удалить все ярлыки Джарвиса
+#   .\scripts\create_shortcut.ps1 -Remove        удалить все ярлыки Юки
 param(
     [switch]$Autostart,
     [switch]$NoStartMenu,
@@ -11,22 +11,24 @@ param(
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
-$linkName = "Джарвис.lnk"
+$names = @("Юки.lnk", "Джарвис.lnk")  # второе — прежнее имя проекта, такие ярлыки убираем
+$folders = @([Environment]::GetFolderPath("Desktop"), [Environment]::GetFolderPath("Programs"),
+             [Environment]::GetFolderPath("Startup"))
 
-$desktopLink = Join-Path ([Environment]::GetFolderPath("Desktop")) $linkName
-$startMenuLink = Join-Path ([Environment]::GetFolderPath("Programs")) $linkName
-$startupLink = Join-Path ([Environment]::GetFolderPath("Startup")) $linkName
-
-if ($Remove) {
+function Remove-Links([string[]]$which) {
     $removed = 0
-    foreach ($path in @($desktopLink, $startMenuLink, $startupLink)) {
-        if (Test-Path $path) {
-            Remove-Item $path -Force
-            Write-Host "Удалён: $path" -ForegroundColor DarkGray
-            $removed++
+    foreach ($folder in $folders) {
+        foreach ($name in $which) {
+            $path = Join-Path $folder $name
+            if (Test-Path $path) { Remove-Item $path -Force; $removed++ }
         }
     }
-    if ($removed -eq 0) { Write-Host "Ярлыков Джарвиса не найдено." -ForegroundColor DarkGray }
+    return $removed
+}
+
+if ($Remove) {
+    $removed = Remove-Links $names
+    if ($removed -eq 0) { Write-Host "Ярлыков Юки не найдено." -ForegroundColor DarkGray }
     else { Write-Host "Удалено ярлыков: $removed" -ForegroundColor Green }
     exit 0
 }
@@ -39,28 +41,27 @@ if (-not (Test-Path $pythonw)) {
 
 $icon = Join-Path $root "assets\yuki.ico"
 if (-not (Test-Path $icon)) {
-    Write-Host "==> Рисую иконку" -ForegroundColor Cyan
     & (Join-Path $root ".venv\Scripts\python.exe") (Join-Path $root "scripts\make_icon.py")
 }
 
-function New-JarvisShortcut([string]$path) {
+function New-YukiShortcut([string]$path) {
     $parent = Split-Path -Parent $path
     if (-not (Test-Path $parent)) { New-Item -ItemType Directory -Path $parent -Force | Out-Null }
-
     $shell = New-Object -ComObject WScript.Shell
     $link = $shell.CreateShortcut($path)
     $link.TargetPath = $pythonw
     $link.Arguments = "main.py"
     $link.WorkingDirectory = $root
-    $link.Description = "Джарвис — голосовой ИИ-агент"
+    $link.Description = "Юки — голосовой ИИ-ассистент"
     if (Test-Path $icon) { $link.IconLocation = "$icon,0" }
     $link.Save()
     Write-Host "Ярлык создан: $path" -ForegroundColor Green
 }
 
-New-JarvisShortcut $desktopLink
-if (-not $NoStartMenu) { New-JarvisShortcut $startMenuLink }
+Remove-Links @("Джарвис.lnk") | Out-Null
+New-YukiShortcut (Join-Path $folders[0] "Юки.lnk")
+if (-not $NoStartMenu) { New-YukiShortcut (Join-Path $folders[1] "Юки.lnk") }
 if ($Autostart) {
-    New-JarvisShortcut $startupLink
-    Write-Host "Джарвис будет запускаться при входе в систему." -ForegroundColor DarkGray
+    New-YukiShortcut (Join-Path $folders[2] "Юки.lnk")
+    Write-Host "Юки будет запускаться при входе в систему." -ForegroundColor DarkGray
 }
