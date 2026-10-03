@@ -22,6 +22,7 @@ import re
 import threading
 import time
 import unicodedata
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from . import apps, automation, screen
@@ -174,6 +175,23 @@ def search_query(name: str) -> str:
     return " ".join(word for word in words if len(word) >= 2) or plain(name)
 
 
+def search_variants(name: str) -> tuple[str, ...]:
+    """Чем пробовать искать по очереди, пока выдача пуста.
+
+    Одного запроса мало. Основа («владимир» вместо «Владимиру») находит склонённые
+    имена, но портит ники и латиницу: у «sanya_dev» она отрезала бы хвост. Полное
+    имя из двух слов не находит человека, подписанного одним. Поэтому вариантов
+    три — основа, сказанное как есть, первое слово — и первый непустой ответ
+    прекращает перебор.
+    """
+    asked = str(name or "").strip()
+    if asked.startswith("@"):
+        return (asked,)
+    base = search_query(asked)
+    variants = [base, plain(asked), base.split(" ")[0] if base else ""]
+    return tuple(dict.fromkeys(item for item in variants if len(item) >= 2)) or (plain(asked),)
+
+
 # типы чатов, которыми Telegram начинает подпись элемента списка:
 # «Бот, DarkspiritBOT, …», «Группа, 8В, …»
 _CHAT_KINDS = frozenset({"бот", "группа", "канал", "чат", "супергруппа",
@@ -309,6 +327,18 @@ def _window(service: Service, timeout_s: float = 25.0):
     raise OutboxError(f"{service.title} не открылся за {timeout_s:.0f} секунд")
 
 
+# строка поиска последнего открытого мессенджера: по ней отсекается колонка выдачи
+_search_box: screen.Element | None = None
+
+
+def _find_search_box(service: Service) -> screen.Element | None:
+    for word in service.search_words:
+        field = screen.find(word, role="edit", fresh=True)
+        if field is not None:
+            return field
+    return None
+
+
 def _focus_search(service: Service) -> bool:
     """Ставит курсор в строку поиска. Сначала по дереву, потом горячей клавишей.
 
@@ -316,21 +346,29 @@ def _focus_search(service: Service) -> bool:
     Он попадал в строку поиска только при одном размере окна и одной теме
     оформления: у развёрнутого окна там уже другое, и поиск начинал печататься
     в открытый чат. Дерево интерфейса знает, где строка поиска на самом деле.
+
+    Найденная строка запоминается: по её прямоугольнику дальше отличают колонку
+    с результатами от всего остального окна.
     """
-    for word in service.search_words:
-        field = screen.find(word, role="edit", fresh=True)
-        if field is not None:
-            x, y = screen.click_point(field)
-            automation.mouse_click(x, y)
-            time.sleep(0.25)
-            _clear_field()
-            return True
+    global _search_box
+
+    _search_box = None
+    field = _find_search_box(service)
+    if field is not None:
+        x, y = screen.click_point(field)
+        automation.mouse_click(x, y)
+        time.sleep(0.25)
+        _clear_field()
+        _search_box = field
+        return True
 
     if service.search_hotkey:
         try:
             automation.press_hotkey(service.search_hotkey)
             time.sleep(0.5)
             _clear_field()
+            # у Discord поиск появляется только после Ctrl+K — ищем строку уже после нажатия
+            _search_box = _find_search_box(service)
             return True
         except automation.ActionError:
             pass
@@ -356,6 +394,26 @@ def _best_similarity(names: tuple[str, ...], found: str) -> float:
     return max((similarity(name, found) for name in names if name), default=0.0)
 
 
+def results_zone(box: screen.Element | None,
+                 items: Sequence[screen.Element]) -> tuple[screen.Element, ...]:
+    """Строки выдачи поиска: колонка под строкой поиска, сверху вниз.
+
+    Без этого отбора в кандидаты попадало всё окно целиком — включая открытую
+    справа переписку. Имя собеседника из её заголовка или из текста сообщения
+    выглядело точно таким же кандидатом, как настоящая строка списка, и щелчок
+    уходил по нему. Колонка определяется по строке поиска: настоящие результаты
+    начинаются не ниже её и не правее её правого края.
+
+    Порядок — визуальный, сверху вниз. Обход дерева интерфейса даёт свой, и
+    «первый результат» в нём не тот, который человек видит первым.
+    """
+    rows = sorted(items, key=lambda item: (item.top, item.left))
+    if box is None:
+        return tuple(rows)
+    inside = [item for item in rows if item.top >= box.top and item.left <= box.right]
+    return tuple(inside or rows)
+
+
 def _result_names(service: Service, query: str | tuple[str, ...]) -> tuple[str, ...]:
     """Имена в списке результатов поиска — то, из чего человек будет выбирать.
 
@@ -366,7 +424,7 @@ def _result_names(service: Service, query: str | tuple[str, ...]) -> tuple[str, 
     by_handle = any(item.startswith("@") for item in queries)
     seen: list[str] = []
     _last_results.clear()
-    for item in screen.visible_elements(fresh=True):
+    for item in results_zone(_search_box, screen.visible_elements(fresh=True)):
         if item.role not in ("listitem", "treeitem", "button", "text"):
             continue
         name = chat_title(item.name) if item.role == "listitem" else item.name.strip()
@@ -430,10 +488,16 @@ def prepare(service_name: str, contact: str, timeout_s: float = 25.0,
             f"не нашла строку поиска в {service.title}. Открой её сам и повтори просьбу"
         )
 
-    automation.type_text(search_query(asked) if not asked.startswith("@") else asked)
     # сверяем выдачу и с тем, что ищем, и с тем, как человека назвали вслух
     compare = tuple(dict.fromkeys((asked, *also)))
-    names = _wait_results(service, compare)
+    names: tuple[str, ...] = ()
+    for attempt, text in enumerate(search_variants(asked)):
+        if attempt:
+            _clear_field()
+        automation.type_text(text)
+        names = _wait_results(service, compare)
+        if names:
+            break
     draft = Draft(service=service, asked=asked, candidates=names)
 
     if not names:
@@ -467,13 +531,15 @@ def _result_element(name: str) -> screen.Element | None:
     screen.invalidate()
     best: screen.Element | None = None
     score = 0.0
-    for item in screen.visible_elements(fresh=True):
+    for item in results_zone(_search_box, screen.visible_elements(fresh=True)):
         if item.role not in ("listitem", "treeitem", "button"):
             continue
         label = chat_title(item.name) if item.role == "listitem" else item.name.strip()
         if len(label) < 2:
             continue
         value = similarity(name, label)
+        # строго «больше»: при равном совпадении остаётся верхняя строка — та,
+        # которую человек видит первой и считает первым контактом
         if value > score:
             best, score = item, value
     return best if score >= SURE else None

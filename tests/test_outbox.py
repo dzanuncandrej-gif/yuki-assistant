@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from core import outbox
+from core import outbox, screen
 
 
 def test_exact_name_is_certain() -> None:
@@ -73,3 +73,62 @@ def test_unknown_service_is_rejected() -> None:
         assert "голубиная почта" in str(err)
     else:  # pragma: no cover
         raise AssertionError("неизвестный мессенджер должен приводить к OutboxError")
+
+
+# ---------------------------------------------------------------- колонка выдачи
+
+
+def _row(name: str, top: int, left: int = 0, right: int = 300) -> screen.Element:
+    return screen.Element(name=name, role="listitem", left=left, top=top,
+                          right=right, bottom=top + 60)
+
+
+def test_results_zone_drops_the_opened_conversation() -> None:
+    """Справа — открытая переписка. Её строки не кандидаты: щелчок по ним уводит не туда."""
+    box = screen.Element(name="Поиск", role="edit", left=10, top=40, right=300, bottom=76)
+    rows = (_row("Владимир", 120), _row("Владимир Петров", 900, left=620, right=1500))
+    zone = outbox.results_zone(box, rows)
+    assert [item.name for item in zone] == ["Владимир"]
+
+
+def test_results_zone_is_ordered_top_down() -> None:
+    """Порядок — как видит человек, а не как обходится дерево интерфейса."""
+    box = screen.Element(name="Поиск", role="edit", left=10, top=40, right=300, bottom=76)
+    rows = (_row("третий", 320), _row("первый", 120), _row("второй", 220))
+    assert [item.name for item in outbox.results_zone(box, rows)] == ["первый", "второй", "третий"]
+
+
+def test_results_zone_without_search_box_keeps_everything() -> None:
+    """Строку поиска найти не удалось — лучше весь список, чем пустая выдача."""
+    rows = (_row("Владимир", 900, left=620, right=1500),)
+    assert len(outbox.results_zone(None, rows)) == 1
+
+
+def test_results_zone_falls_back_when_column_is_empty() -> None:
+    """Колонка посчиталась неверно — отдаём всё, что есть, вместо «никого не нашла»."""
+    box = screen.Element(name="Поиск", role="edit", left=10, top=40, right=300, bottom=76)
+    rows = (_row("Владимир", 10, left=620, right=1500),)
+    assert len(outbox.results_zone(box, rows)) == 1
+
+
+# ---------------------------------------------------------------- варианты запроса
+
+
+def test_search_variants_try_stem_first() -> None:
+    assert outbox.search_variants("Владимиру")[0].startswith("владимир")
+
+
+def test_search_variants_add_first_word_for_two_part_names() -> None:
+    """«Максим Петров» подписан просто «Максим» — последний заход ищет по одному имени."""
+    variants = outbox.search_variants("Максим Петров")
+    assert variants[0] == "макс петров"
+    assert variants[-1] == "макс"
+
+
+def test_search_variants_keep_handle_as_is() -> None:
+    assert outbox.search_variants("@sanya_dev") == ("@sanya_dev",)
+
+
+def test_search_variants_have_no_repeats() -> None:
+    variants = outbox.search_variants("Лёша")
+    assert len(variants) == len(set(variants))

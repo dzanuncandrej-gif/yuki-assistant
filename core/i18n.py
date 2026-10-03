@@ -112,8 +112,8 @@ _EN: dict[str, str] = {
     "Модель": "Model",
     "Мозг ассистента: локальная Ollama.": "The assistant's brain: local Ollama.",
     "Основная модель": "Main model",
-    "Например qwen3:8b — используется для сложных ответов.":
-        "For example qwen3:8b — used for complex answers.",
+    "Например qwen3.5:9b — используется для сложных ответов.":
+        "For example qwen3.5:9b — used for complex answers.",
     "Быстрая модель": "Fast model",
     "Отдельная лёгкая модель для болтовни. Пусто — разговор ведёт основная, и это "
     "обычно быстрее: две модели не помещаются в память видеокарты вместе и "

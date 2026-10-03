@@ -201,8 +201,8 @@ def language_page(store: SettingsStore, actions: Actions) -> QWidget:
 def ai_page(store: SettingsStore, actions: Actions) -> QWidget:
     card = Card(i18n.t("Модель"), i18n.t("Мозг ассистента: локальная Ollama."))
     model_row, model = input_row(i18n.t("Основная модель"),
-                                 i18n.t("Например qwen3:8b — используется для сложных ответов."),
-                                 str(store.get("brain", "model", "qwen3:8b")), "qwen3:8b")
+                                 i18n.t("Например qwen3.5:9b — используется для сложных ответов."),
+                                 str(store.get("brain", "model", "qwen3.5:9b")), "qwen3.5:9b")
     model.editingFinished.connect(lambda: store.set("brain", "model", model.text().strip()))
     card.add(model_row)
 
